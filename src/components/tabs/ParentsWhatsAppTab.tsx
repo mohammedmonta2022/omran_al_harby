@@ -17,6 +17,7 @@ import {
   Search
 } from 'lucide-react';
 import { Student, AttendanceRecord, StudentEvaluation, AppSettings } from '../../types';
+import { calculateRealisticQuranAssignment } from '../../data/quranData';
 
 interface ParentsWhatsAppTabProps {
   students: Student[];
@@ -45,22 +46,30 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
 
   // Helper to generate instant, complete and rich message
   const buildFullMessage = (student: Student, status: string, evalData?: StudentEvaluation): string => {
-    const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/?portal=${student.id}` : '';
+    const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/?portal=${encodeURIComponent(student.id)}` : '';
     
+    // Calculate realistic quran assignment if needed
+    const realisticAssignment = calculateRealisticQuranAssignment(
+      student.currentSurah || student.currentSurahName || 78,
+      student.currentAyah || 1,
+      student.level || 'متوسط',
+      student.dailyNewTarget || 'نصف وجه'
+    );
+
     // Today recited details
     const todayNewRecited = evalData?.recitationDetails?.newMemorizationAchieved || 
-      (student.aiPlan?.currentDailyAssignment?.newMemorization ? `أتم تسميع ${student.aiPlan.currentDailyAssignment.newMemorization} بإتقان` : `سورة ${student.currentSurahName} (الآية ${student.currentAyah})`);
+      (student.aiPlan?.currentDailyAssignment?.newMemorization ? `أتم تسميع ${student.aiPlan.currentDailyAssignment.newMemorization} بإتقان` : realisticAssignment.newMemorization);
     
     const todayReviewRecited = evalData?.recitationDetails?.reviewAchieved || 
-      (student.aiPlan?.currentDailyAssignment?.review ? `أتم مراجعة ${student.aiPlan.currentDailyAssignment.review}` : `مراجعة السور المقررة وتثبيتها`);
+      (student.aiPlan?.currentDailyAssignment?.review ? `أتم مراجعة ${student.aiPlan.currentDailyAssignment.review}` : realisticAssignment.review);
     
-    const teacherNotes = evalData?.recitationDetails?.teacherNotes || (status === 'حاضر' ? 'أداء طيب ومبارك، نسأل الله له الثبات والرفعة' : 'نرجو المتابعة والتواصل مع المعلم');
+    const teacherNotes = evalData?.recitationDetails?.teacherNotes || (status === 'حاضر' ? 'أداء طيب ومبارك، نسأل الله له التوفيق والرفعة' : 'نرجو المتابعة والتواصل مع المعلم');
 
     // Tomorrow targets
-    const tomorrowNew = student.aiPlan?.currentDailyAssignment?.newMemorization || `سورة ${student.currentSurahName} (مواصلة الورد المقرر)`;
-    const tomorrowReview = student.aiPlan?.currentDailyAssignment?.review || `مراجعة المحفوظ السابق والتثبيت`;
-    const sheikh = student.aiPlan?.currentDailyAssignment?.suggestedSheikh || 'الشيخ المنشاوي (المصحف المعلم)';
-    const homeNote = student.aiPlan?.currentDailyAssignment?.dailyNote || 'الاستماع للقارئ وتكرار الورد 3 مرات مع التثبيت قبل النوم.';
+    const tomorrowNew = student.aiPlan?.currentDailyAssignment?.newMemorization || realisticAssignment.newMemorization;
+    const tomorrowReview = student.aiPlan?.currentDailyAssignment?.review || realisticAssignment.review;
+    const sheikh = student.aiPlan?.currentDailyAssignment?.suggestedSheikh || realisticAssignment.suggestedSheikh;
+    const homeNote = student.aiPlan?.currentDailyAssignment?.dailyNote || realisticAssignment.dailyNote;
 
     let msg = `السلام عليكم ورحمة الله وبركاته 🌿\n`;
     msg += `المكرم ولي أمر الطالب العزيز / *${student.name}* حفظه الله\n`;

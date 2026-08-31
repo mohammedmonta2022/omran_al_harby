@@ -3,6 +3,12 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import {
+  QURAN_SURAHS,
+  getSurahInfo,
+  calculateRealisticQuranAssignment,
+  FAMOUS_RECITERS
+} from "./src/data/quranData.js";
 
 dotenv.config();
 
@@ -21,25 +27,39 @@ const ai = new GoogleGenAI({
   },
 });
 
-// Helper for fallback when Gemini key is not set or network issue
+// Helper for realistic fallback when Gemini key is not set or network issue
 function getFallbackPlan(student: any) {
+  const surahId = student.currentSurah || student.currentSurahName || 78;
+  const ayah = student.currentAyah || 1;
+  const assignment = calculateRealisticQuranAssignment(
+    surahId,
+    ayah,
+    student.level || "متوسط",
+    student.dailyNewTarget || "نصف وجه"
+  );
+
   const isWeak = student.level === "ضعيف";
   const isStrong = student.level === "قوي";
+
   return {
-    roadmapSummary: `خطة تحفيظ مخصصة للطالب ${student.name} تبدأ من سورة ${student.currentSurahName || 'البقرة'} آية ${student.currentAyah || 1} بمعدل ${student.dailyNewTarget || 'نصف وجه'} يومياً.`,
+    roadmapSummary: `خطة تحفيظ تربوية متقنة للطالب ${student.name} في ${assignment.surah.name} (عدد آياتها ${assignment.surah.numberOfAyahs} آية)، تبدأ من الآية (${assignment.startAyah}) بمعدل ${student.dailyNewTarget || "نصف وجه"} يومياً مع التثبيت الدوري.`,
     currentDailyAssignment: {
-      newMemorization: `سورة ${student.currentSurahName || 'البقرة'}: من آية ${student.currentAyah || 1} إلى آية ${(student.currentAyah || 1) + (isWeak ? 4 : isStrong ? 12 : 7)}`,
-      review: `مراجعة السورة السابقة مع التركيز على التثبيت`,
-      suggestedSheikh: isWeak ? "الشيخ مشاري بن راشد العفاسي" : "الشيخ محمود خليل الحصري (المصحف المعلم)",
-      tajweedFocus: "مراعاة أحكام الغنن والمدود ومخارج الحروف",
-      dailyNote: "الاستماع للقارئ 3 مرات قبل الحفظ، والتسميع على الوالد بالمنزل.",
+      newMemorization: assignment.newMemorization,
+      review: assignment.review,
+      suggestedSheikh: assignment.suggestedSheikh,
+      tajweedFocus: assignment.tajweedFocus,
+      dailyNote: assignment.dailyNote,
     },
-    difficultyAdjustment: isWeak ? "تم تيسير المقدار لترسيخ الحفظ وبناء الثقة" : isStrong ? "خطة سريعة ومتقنة تناسب قدرات الطالب العالية" : "خطة متوازنة وثابتة",
+    difficultyAdjustment: isWeak
+      ? "خطة ميسرة تراعي سن وقدرة الطالب مع التركيز على التكرار وضبط المخارج"
+      : isStrong
+      ? "خطة متقدمة تركز على سرعة الاستيعاب وجودة الإتقان والربط"
+      : "خطة متوازنة تحقق الاستمرارية والإتقان",
     estimatedDaysToFinishJuz: isWeak ? 40 : isStrong ? 20 : 30,
   };
 }
 
-// 1. Generate Daily Quran AI Plan
+// 1. Generate Daily Quran AI Plan with STRICT Quran Ground Truth
 app.post("/api/gemini/generate-plan", async (req, res) => {
   try {
     const { student } = req.body;
@@ -47,31 +67,44 @@ app.post("/api/gemini/generate-plan", async (req, res) => {
       return res.status(400).json({ error: "بيانات الطالب مطلوبة" });
     }
 
+    const surah = getSurahInfo(student.currentSurah || student.currentSurahName || 78);
+    const startAyah = Math.max(1, Math.min(student.currentAyah || 1, surah.numberOfAyahs));
+
     if (!process.env.GEMINI_API_KEY) {
       return res.json({ plan: getFallbackPlan(student) });
     }
 
-    const prompt = `أنت شيخ ومقرئ خبير في تحفيظ القرآن الكريم ومنهجيات الحفظ المتقن (الربط، التكرار، تقسيم الأرباع، مراعاة الفروق الفردية).
-المطلوب: وضع خطة يومية ذكية وخارطة طريق تحفيظ للطالب التالي:
+    const prompt = `أنت شيخ مقرئ ومربٍ خبير في تحفيظ القرآن الكريم وتوجيه الحلقات القرآنية.
+المطلوب: وضع خطة يومية تربوية دقيقة وخارطة طريق تحفيظ للطالب التالي:
 - اسم الطالب: ${student.name}
 - العمر: ${student.age} سنة
-- المستوى: ${student.level} (ضعيف/متوسط/قوي)
-- موضع الحفظ الحالي: سورة ${student.currentSurahName} (رقم ${student.currentSurah}) عند الآية رقم ${student.currentAyah}
+- المستوى: ${student.level} (ضعيف / متوسط / قوي)
 - طاقة الحفظ اليومي للجديد: ${student.dailyNewTarget}
 - طاقة المراجعة اليومية: ${student.dailyReviewTarget}
 - ملاحظات المعلم: ${student.notes || "لا توجد"}
 
-قم بصياغة الخطة بدقة بحيث تخرج كائن JSON بالهيكل التالي فقط:
+بيانات موضع الحفظ القرآني الحالي (حقائق قرآنية ملزمة):
+- السورة الحالية: سورة ${surah.name} (رقم ${surah.number} في المصحف، نوعها: ${surah.revelationType}، الجزء: ${surah.juz})
+- عدد آيات السورة الإجمالي: ${surah.numberOfAyahs} آية فقط!
+- الآية الحالية التي يقف عندها: الآية رقم ${startAyah}
+
+قواعد قرآنية وتربوية صارمة يجب الالتزام بها 100%:
+1. [قاعدة حاسمة]: إجمالي آيات سورة ${surah.name} هو ${surah.numberOfAyahs} آية فقط! ممنوع نهائياً ومطلقاً ذكر أي رقم آية يتجاوز ${surah.numberOfAyahs} (مثلاً: سورة الناس 6 آيات فقط، سورة الفلق 5، الإخلاص 4، الفاتحة 7، الكوثر 3، إلخ).
+2. إذا كان مقدار حفظ الطالب يصل لنهاية السورة، اكتب: "سورة ${surah.name} كاملة (الآيات 1 - ${surah.numberOfAyahs})" أو "سورة ${surah.name}: من الآية ${startAyah} إلى الآية ${surah.numberOfAyahs} (ختام السورة)".
+3. حدد ورد المراجعة بالسورة والآيات، واقترح قارئاً معلماً معتمداً مناسباً لعمر ومستوى الطالب (مثلاً: الشيخ المنشاوي المعلم، أو الحصري المعلم، أو العفاسي).
+4. اكتب توجيهاً منزلياً عملياً لولي الأمر للربط والتكرار والتثبيت قبل النوم.
+
+أخرج النتيجة بصيغة JSON فقط:
 {
-  "roadmapSummary": "ملخص عام واستراتيجي لخطة الطالب في إتمام الحفظ والمراجعة",
+  "roadmapSummary": "ملخص تربوي واستراتيجي لخطة الطالب في إتمام الحفظ والمراجعة",
   "currentDailyAssignment": {
-    "newMemorization": "تحديد الآيات بالضبط للحفظ الجديد لليوم، مثلا: سورة البقرة: الآيات (1-10)",
-    "review": "تحديد ورد المراجعة اليومي بدقة، مثلا: مراجعة سورة النبأ والنازعات",
-    "suggestedSheikh": "اسم الشيخ المقترح للاستماع له (مثلاً الحصري المعلم، المنشاوي، العفاسي، أيمن سويد)",
+    "newMemorization": "تحديد الآيات بالضبط للحفظ الجديد لليوم مع الالتزام التام بعدد آيات السورة (${surah.numberOfAyahs})",
+    "review": "تحديد ورد المراجعة اليومي بدقة مع أسماء السور والآيات",
+    "suggestedSheikh": "اسم الشيخ المقترح للاستماع له (مثل: الشيخ محمد صديق المنشاوي - المصحف المعلم)",
     "tajweedFocus": "الحكم التجويدي أو المهارة الصوتية للتركيز عليها اليوم",
-    "dailyNote": "توجيه تربوي عملي للربط والتكرار في البيت"
+    "dailyNote": "توجيه تربوي عملي للربط والتكرار بالمنزل"
   },
-  "difficultyAdjustment": "توضيح هل تم التيسير أو التدرج ولماذا",
+  "difficultyAdjustment": "توضيح هل تم التيسير أو التدرج ولماذا بناءً على مستوى الطالب",
   "estimatedDaysToFinishJuz": 30
 }`;
 
@@ -100,21 +133,23 @@ app.post("/api/gemini/evaluate-progress", async (req, res) => {
       return res.status(400).json({ error: "بيانات الطالب والتقييم مطلوبة" });
     }
 
+    const surah = getSurahInfo(student.currentSurah || student.currentSurahName || 78);
+
     if (!process.env.GEMINI_API_KEY) {
       return res.json({
         feedback: {
           studentProgressStatus: "منتظم",
-          analysis: "تم حفظ الورد والتسميع بنجاح ومستوى الطالب طيب.",
-          reasoning: "متابعة الخطة المقررة مع الحفاظ على التكرار.",
+          analysis: `تم إنجاز التسميع بنجاح في سورة ${surah.name} ومستوى الطالب طيب ومبشر.`,
+          reasoning: "مواصلة الخطة المقررة مع التثبيت المستمر.",
           nextDayPlan: currentPlan?.currentDailyAssignment || getFallbackPlan(student).currentDailyAssignment,
         },
       });
     }
 
     const prompt = `أنت شيخ مقرئ وموجه تربوي لحلقات القرآن الكريم.
-قم بتحليل تسميع الطالب اليوم وضبط خطة الغد تلقائياً بناءً على ما أنجزه وملاحظات المعلم:
-- اسم الطالب: ${student.name}
-- مستواه: ${student.level}
+المطلوب: تحليل تسميع الطالب اليوم وضبط خطة الغد تلقائياً بناءً على ما أنجزه وملاحظات المعلم:
+- اسم الطالب: ${student.name} (العمر: ${student.age} سنة، المستوى: ${student.level})
+- السورة الحالية: سورة ${surah.name} (إجمالي آياتها: ${surah.numberOfAyahs} آية فقط)
 - الورد المطلوب منه اليوم:
   * جديد: ${currentPlan?.currentDailyAssignment?.newMemorization || "غير محدد"}
   * مراجعة: ${currentPlan?.currentDailyAssignment?.review || "غير محدد"}
@@ -124,19 +159,20 @@ app.post("/api/gemini/evaluate-progress", async (req, res) => {
   * ملاحظات الشيخ/المعلم أو العذر: ${evaluation.recitationDetails?.teacherNotes || "لا يوجد"}
   * درجات التقييم اليوم: ${JSON.stringify(evaluation.criteriaValues || {})}
 
-قواعد الذكاء الاصطناعي في الضبط:
-1. إذا تعثر الطالب أو حفظ جزءاً فقط: لا تضغط عليه، قسّم ما تبقى عليه غداً مع تخفيف بسيط وخطوة تثبيت.
-2. إذا أتقن بتفوق وسهولة: زد له باعتدال أو عمّق المراجعة دون إخلال بالإتقان.
-3. إذا كان معتذراً أو مريضاً: ضع خطة استدراكية خفيفة ولطيفة.
+قواعد الذكاء الاصطناعي في الضبط والتخطيط:
+1. التزام تام وصارم بآيات السورة (${surah.name} آياتها ${surah.numberOfAyahs} فقط، لا تتجاوز هذا الرقم أبداً).
+2. إذا تعثر الطالب أو حفظ جزءاً فقط: لا تضغط عليه، قسّم ما تبقى عليه غداً مع خطوة تثبيت وتكرار.
+3. إذا أتقن بتفوق وسهولة: زد له باعتدال أو عمّق المراجعة دون إخلال بالإتقان.
+4. إذا كان معتذراً أو مريضاً: ضع خطة استدراكية خفيفة ولطيفة.
 
 أرجع النتيجة بصيغة JSON فقط:
 {
   "studentProgressStatus": "متقدم" | "منتظم" | "متأخر" | "يحتاج مساعدة",
-  "analysis": "تحليل أداء الطالب اليوم ونقاط القوة والمواضع التي تحتاج عناية",
+  "analysis": "تحليل أداء الطالب اليوم ونقاط القوة والمواضع التي تحتاج عناية وتجويد",
   "reasoning": "سبب تعديل أو تثبيت خطة الغد",
   "nextDayPlan": {
-    "newMemorization": "تحديد الآيات بالضبط للحفظ الجديد لغد",
-    "review": "تحديد ورد المراجعة لغد",
+    "newMemorization": "تحديد الآيات بالضبط للحفظ الجديد لغد (بحيث لا تتجاوز آيات سورة ${surah.name} البالغة ${surah.numberOfAyahs} آية)",
+    "review": "تحديد ورد المراجعة لغد بدقة",
     "suggestedSheikh": "القارئ الأنسب لمستواه",
     "tajweedFocus": "الحكم التجويدي المطلوب مراعاته",
     "dailyNote": "نصيحة عملية للطالب وولي أمره لليوم التالي"
@@ -160,7 +196,7 @@ app.post("/api/gemini/evaluate-progress", async (req, res) => {
       feedback: {
         studentProgressStatus: "منتظم",
         analysis: "تم تسجيل التسميع والمستوى جيد.",
-        reasoning: "الاستمرار في الخطة التراكمية.",
+        reasoning: "الاستمرار في الخطة التراكمية والتثبيت.",
         nextDayPlan: getFallbackPlan(req.body?.student || {}).currentDailyAssignment,
       },
     });

@@ -125,10 +125,122 @@ export const QURAN_SURAHS: SurahInfo[] = [
 ];
 
 export const FAMOUS_RECITERS = [
-  { id: "hussary", name: "الشيخ محمود خليل الحصري (المصحف المعلم)", style: "إتقان الأحكام ومخارج الحروف والتأني" },
-  { id: "minshawi", name: "الشيخ محمد صديق المنشاوي (المعلم)", style: "خشوع وعذوبة الصوت وترسيخ الحفظ" },
-  { id: "abdulbasit", name: "الشيخ عبد الباسط عبد الصمد (مرتل)", style: "فصاحة الصوت وطول النفس" },
-  { id: "hudhaify", name: "الشيخ علي بن عبد الرحمن الحذيفي", style: "وضوح الترتيل وسلاسة القراءة" },
+  { id: "minshawi", name: "الشيخ محمد صديق المنشاوي (المصحف المعلم)", style: "خشوع وعذوبة الصوت وترسيخ الحفظ للناشئة" },
+  { id: "hussary", name: "الشيخ محمود خليل الحصري (المصحف المعلم)", style: "إتقان الأحكام ومخارج الحروف والتأني الفائق" },
   { id: "afasy", name: "الشيخ مشاري بن راشد العفاسي", style: "نبرة محببة وعصرية للأجيال الناشئة" },
-  { id: "suwaid", name: "الدكتور أيمن رشدي سويد", style: "التطبيق العملي الدقيق لقواعد التجويد" }
+  { id: "hudhaify", name: "الشيخ علي بن عبد الرحمن الحذيفي", style: "وضوح الترتيل وسلاسة القراءة وضبط الوقف والابتداء" },
+  { id: "abdulbasit", name: "الشيخ عبد الباسط عبد الصمد (المصحف المرتل)", style: "فصاحة الصوت وقوة الأداء القرآني" },
+  { id: "suwaid", name: "الدكتور أيمن رشدي سويد", style: "التطبيق العملي الدقيق لقواعد التجويد ومخارج الحروف" }
 ];
+
+/**
+ * Find surah by name, number, or fuzzy matching
+ */
+export function getSurahInfo(identifier: string | number): SurahInfo {
+  if (typeof identifier === 'number') {
+    const found = QURAN_SURAHS.find(s => s.number === identifier);
+    return found || QURAN_SURAHS[0];
+  }
+
+  const cleanName = identifier
+    .replace(/^سورة\s+/, '')
+    .replace(/^(ال)/, '')
+    .trim();
+
+  const exact = QURAN_SURAHS.find(
+    s =>
+      s.name === identifier ||
+      s.name === `سورة ${identifier}` ||
+      s.name.replace(/^(ال)/, '') === cleanName ||
+      s.englishName.toLowerCase() === identifier.toLowerCase()
+  );
+
+  return exact || QURAN_SURAHS[113]; // Default to An-Nas if not found
+}
+
+/**
+ * Pedagogical Quranic Assignment Calculator
+ * Calculates REALISTIC, accurate ayah ranges that NEVER exceed surah ayah counts
+ */
+export function calculateRealisticQuranAssignment(
+  surahIdentifier: string | number,
+  startAyah: number = 1,
+  level: string = 'متوسط',
+  dailyTarget: string = 'نصف وجه'
+) {
+  const surah = getSurahInfo(surahIdentifier);
+  const totalAyahs = surah.numberOfAyahs;
+  
+  const validStartAyah = Math.max(1, Math.min(startAyah, totalAyahs));
+  
+  // Determine realistic ayah count based on surah length and student level
+  let step = 5;
+  if (totalAyahs <= 10) {
+    // Short Surahs (e.g. Al-Ikhlas, An-Nas, Al-Falaq, Al-Kawthar, Al-Asr)
+    step = totalAyahs; // Assign whole surah or remaining
+  } else if (totalAyahs <= 30) {
+    step = level === 'ضعيف' ? 4 : level === 'قوي' ? 10 : 6;
+  } else {
+    // Long Surahs (Al-Baqarah, etc.)
+    step = level === 'ضعيف' ? 5 : level === 'قوي' ? 15 : 8;
+  }
+
+  let endAyah = validStartAyah + step - 1;
+  let isCompleteSurah = false;
+  let nextSurahRecommendation = '';
+
+  if (validStartAyah === 1 && (endAyah >= totalAyahs || totalAyahs <= 12)) {
+    // Whole surah
+    endAyah = totalAyahs;
+    isCompleteSurah = true;
+  } else if (endAyah >= totalAyahs) {
+    endAyah = totalAyahs;
+    // Next surah in order
+    if (surah.number > 1) {
+      const prevSurahInJuz = QURAN_SURAHS.find(s => s.number === surah.number - 1);
+      if (prevSurahInJuz) {
+        nextSurahRecommendation = `ثم الشروع في سورة ${prevSurahInJuz.name}`;
+      }
+    }
+  }
+
+  let newMemorizationText = '';
+  if (isCompleteSurah) {
+    newMemorizationText = `سورة ${surah.name} كاملة (الآيات 1 - ${totalAyahs})`;
+  } else if (validStartAyah === endAyah) {
+    newMemorizationText = `سورة ${surah.name}: الآية (${validStartAyah}) مع إتقانها وتثبيتها`;
+  } else {
+    newMemorizationText = `سورة ${surah.name}: من الآية (${validStartAyah}) إلى الآية (${endAyah})`;
+    if (endAyah === totalAyahs) {
+      newMemorizationText += ` (ختام السورة)`;
+    }
+  }
+
+  // Realistic review assignment based on Juz & previous surahs
+  let reviewText = '';
+  if (surah.number < 114) {
+    const nextSurahs = QURAN_SURAHS.filter(s => s.number > surah.number && s.number <= surah.number + 2);
+    if (nextSurahs.length > 0) {
+      reviewText = `مراجعة وتثبيت سورة ${nextSurahs.map(s => s.name).join(' و ')}`;
+    } else {
+      reviewText = `مراجعة وتثبيت ما تم حفظه من جزء ${surah.juz}`;
+    }
+  } else {
+    reviewText = `مراجعة قصار السور من سورة الفيل إلى سورة الفلق وتثبيتها`;
+  }
+
+  const reciter = level === 'ضعيف' ? FAMOUS_RECITERS[0].name : FAMOUS_RECITERS[1].name;
+
+  return {
+    surah,
+    startAyah: validStartAyah,
+    endAyah,
+    totalAyahs,
+    newMemorization: newMemorizationText,
+    review: reviewText,
+    suggestedSheikh: reciter,
+    tajweedFocus: totalAyahs <= 30 ? "ضبط الغنن والمدود الطبيعية ومخارج الحروف بدقة" : "تطبيق أحكام النون الساكنة والتنوين والمد المتصل والمنفصل",
+    dailyNote: `الاستماع للشيخ المقترح 3 مرات بتركيز، ثم تكرار الآيات المقررة غيباً 5 مرات قبل النوم والتسميع على ولي الأمر.`
+  };
+}
+

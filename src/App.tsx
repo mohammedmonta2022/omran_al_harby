@@ -77,13 +77,32 @@ export function App() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
-  // Parse URL on initial load
+  // Parse URL on initial load and handle hash / search changes
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const portalId = urlParams.get('portal');
-    if (portalId) {
-      setPortalStudentId(portalId);
-    }
+    const parsePortalParam = () => {
+      // Check search params ?portal=...
+      const urlParams = new URLSearchParams(window.location.search);
+      let portalId = urlParams.get('portal');
+
+      // Check hash #portal=... or #/portal/...
+      if (!portalId && window.location.hash) {
+        const hash = window.location.hash.replace(/^#\/?/, '');
+        const hashParams = new URLSearchParams(hash);
+        portalId = hashParams.get('portal') || (hash.startsWith('portal=') ? hash.split('portal=')[1] : null);
+      }
+
+      if (portalId) {
+        setPortalStudentId(decodeURIComponent(portalId));
+      }
+    };
+
+    parsePortalParam();
+    window.addEventListener('popstate', parsePortalParam);
+    window.addEventListener('hashchange', parsePortalParam);
+    return () => {
+      window.removeEventListener('popstate', parsePortalParam);
+      window.removeEventListener('hashchange', parsePortalParam);
+    };
   }, []);
 
   // Load all data from Firestore / LocalCache
@@ -318,11 +337,37 @@ export function App() {
 
   // If URL contains portal query param or logged in as student:
   const activePortalStudent = portalStudentId
-    ? students.find(s => s.id === portalStudentId)
+    ? students.find(
+        s =>
+          s.id === portalStudentId ||
+          s.id.toLowerCase() === portalStudentId.toLowerCase() ||
+          s.name.trim() === portalStudentId.trim() ||
+          s.name.replace(/\s+/g, '') === portalStudentId.replace(/\s+/g, '')
+      )
     : currentUser?.role === 'student'
     ? students.find(s => s.id === currentUser.studentId || s.name === currentUser.username)
     : null;
 
+  // 1. Loading State when accessing via direct Portal Link
+  if (portalStudentId && isLoadingData) {
+    return (
+      <div className="min-h-screen bg-[#022c22] text-[#f0f9f6] font-sans flex flex-col items-center justify-center p-6" dir="rtl">
+        <AnimatedBackground />
+        <div className="relative z-10 text-center space-y-4 max-w-sm bg-[#064e3b]/80 border border-[#065f46] p-8 rounded-[32px] backdrop-blur-md shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] text-[#064e3b] flex items-center justify-center mx-auto shadow-xl animate-pulse">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold font-heading text-white">بوابة المتابعة الحية</h2>
+          <p className="text-xs text-[#86efac]">جاري تحميل ملف الطالب والبيانات القرآنية المحدثة...</p>
+          <div className="w-full bg-[#022c22] h-1.5 rounded-full overflow-hidden">
+            <div className="bg-[#fbbf24] h-full rounded-full animate-indeterminate" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Direct Student / Parent Portal View
   if (activePortalStudent) {
     return (
       <div className="min-h-screen bg-[#022c22] text-[#f0f9f6] font-sans selection:bg-[#fbbf24] selection:text-[#064e3b]" dir="rtl">
@@ -335,6 +380,43 @@ export function App() {
           isLoggedInStudent={!!currentUser}
           onLogout={handleLogout}
         />
+      </div>
+    );
+  }
+
+  // 3. If Portal Link was invalid / not found after data loaded
+  if (portalStudentId && !isLoadingData && !activePortalStudent) {
+    return (
+      <div className="min-h-screen bg-[#022c22] text-[#f0f9f6] font-sans flex flex-col items-center justify-center p-6" dir="rtl">
+        <AnimatedBackground />
+        <div className="relative z-10 text-center space-y-5 max-w-md bg-[#064e3b]/90 border border-amber-500/40 p-8 rounded-[32px] backdrop-blur-md shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-[#fbbf24] flex items-center justify-center mx-auto border border-amber-500/30">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold font-heading text-white">لم يتم العثور على ملف الطالب</h2>
+            <p className="text-xs text-[#86efac]/90 mt-2 leading-relaxed">
+              تعذر العثور على سجل الطالب بالمعرّف المرفق. قد يكون تم تحديث السجل أو تعديل بيانات الحلقة.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              onClick={() => {
+                setPortalStudentId(null);
+                window.history.replaceState({}, '', window.location.pathname);
+              }}
+              className="flex-1 py-3 px-4 rounded-2xl bg-[#fbbf24] text-[#064e3b] font-black text-xs hover:bg-[#f59e0b] shadow-lg cursor-pointer transition-all"
+            >
+              الذهاب إلى البوابة الرئيسية
+            </button>
+            <button
+              onClick={() => loadAllData()}
+              className="py-3 px-4 rounded-2xl bg-[#022c22] text-[#86efac] font-bold text-xs border border-[#065f46] hover:text-white cursor-pointer"
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

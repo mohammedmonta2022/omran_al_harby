@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
+  "name": "omran-quran-platform",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "منصة عُمْرَان الذكية لإدارة حلقات تحفيظ القرآن الكريم والتقييم بالذكاء الاصطناعي",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
