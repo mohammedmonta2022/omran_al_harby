@@ -360,22 +360,25 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
       {/* Full History Modal */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-[#064e3b] border border-[#fbbf24]/40 rounded-[32px] p-6 sm:p-8 shadow-2xl shadow-emerald-950/80 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-[#065f46] mb-4">
-              <h3 className="text-base font-bold text-[#fbbf24] flex items-center gap-2">
-                <History className="w-5 h-5 text-[#fbbf24]" />
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-3xl bg-[#064e3b] border border-[#fbbf24]/40 rounded-2xl sm:rounded-[32px] shadow-2xl shadow-emerald-950/80 max-h-[90vh] flex flex-col my-auto overflow-hidden animate-fadeIn">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-[#065f46] shrink-0 bg-[#064e3b]">
+              <h3 className="text-sm sm:text-base font-bold text-[#fbbf24] flex items-center gap-2 font-heading">
+                <History className="w-5 h-5 text-[#fbbf24] shrink-0" />
                 <span>سجل الحضور والغياب التراكمي لجميع الطلاب</span>
               </h3>
               <button
+                type="button"
                 onClick={() => setShowHistoryModal(false)}
-                className="text-xs px-4 py-2 rounded-2xl bg-[#022c22] text-[#86efac] hover:text-white border border-[#065f46] cursor-pointer"
+                className="text-xs px-3.5 py-1.5 rounded-xl bg-[#022c22] text-[#86efac] hover:text-white border border-[#065f46] cursor-pointer"
               >
                 إغلاق
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 space-y-3">
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-3">
               {students.map(student => {
                 const studentRecords = attendanceRecords.filter(r => r.studentId === student.id);
                 const total = studentRecords.length;
@@ -388,7 +391,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 return (
                   <div
                     key={student.id}
-                    className="p-4 bg-[#022c22]/80 border border-[#065f46] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    className="p-3.5 sm:p-4 bg-[#022c22]/80 border border-[#065f46] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                   >
                     <div>
                       <h4 className="font-bold text-white text-sm">{student.name}</h4>
@@ -397,17 +400,17 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-xl bg-[#fbbf24]/20 text-[#fbbf24] font-bold">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <span className="px-2 py-0.5 rounded-lg bg-[#fbbf24]/20 text-[#fbbf24] font-bold text-[11px]">
                         حاضر: {presents}
                       </span>
-                      <span className="px-2.5 py-1 rounded-xl bg-red-500/20 text-red-300">
+                      <span className="px-2 py-0.5 rounded-lg bg-red-500/20 text-red-300 text-[11px]">
                         غائب: {absents}
                       </span>
-                      <span className="px-2.5 py-1 rounded-xl bg-emerald-500/20 text-[#86efac]">
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-[#86efac] text-[11px]">
                         معتذر: {excuseds}
                       </span>
-                      <span className="px-3 py-1 rounded-xl bg-[#fbbf24] text-[#064e3b] font-black shadow-sm">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-[#fbbf24] text-[#064e3b] font-black text-xs shadow-sm">
                         نسبة الالتزام: {rate}%
                       </span>
                     </div>

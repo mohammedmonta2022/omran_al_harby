@@ -1596,89 +1596,92 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 
       {/* Add / Edit Criteria Modal */}
       {isCriteriaModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#064e3b] border border-[#fbbf24]/40 rounded-[32px] p-6 sm:p-8 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#065f46]">
-              <h3 className="text-base font-bold text-[#fbbf24] font-heading">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-md bg-[#064e3b] border border-[#fbbf24]/40 rounded-2xl sm:rounded-[32px] shadow-2xl flex flex-col max-h-[92vh] my-auto overflow-hidden animate-fadeIn">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-[#065f46] shrink-0 bg-[#064e3b]">
+              <h3 className="text-sm sm:text-base font-bold text-[#fbbf24] font-heading">
                 {editingCriteriaId ? 'تعديل معيار التقييم' : 'إضافة معيار تقييم جديد'}
               </h3>
               <button
+                type="button"
                 onClick={() => setIsCriteriaModalOpen(false)}
-                className="p-1.5 text-[#86efac] hover:text-white rounded-lg cursor-pointer"
+                className="p-1.5 text-[#86efac] hover:text-white rounded-lg cursor-pointer hover:bg-[#022c22]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCriteriaForm} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#86efac] mb-1.5 text-right">
-                  اسم المعيار <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newCritName}
-                  onChange={e => setNewCritName(e.target.value)}
-                  placeholder="مثال: أحكام التجويد، الصوت والترتيل، الآداب"
-                  className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3.5 text-xs text-[#f0f9f6] outline-none"
-                  dir="rtl"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#86efac] mb-1.5 text-right">
-                  نوع التقييم
-                </label>
-                <select
-                  value={newCritType}
-                  onChange={e => setNewCritType(e.target.value as CriteriaType)}
-                  className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3.5 text-xs text-[#f0f9f6] outline-none"
-                >
-                  <option value="score">تقييم بالدرجات (مثلاً من 10 أو 7 أو 100)</option>
-                  <option value="stars">تقييم بالنجوم (1 إلى 5 نجوم)</option>
-                  <option value="options">خيارات مخصصة (ممتاز، جيد، إلخ)</option>
-                  <option value="text">ملاحظات نصية حرة</option>
-                </select>
-              </div>
-
-              {newCritType === 'score' && (
+            <form onSubmit={handleSaveCriteriaForm} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#86efac] mb-1.5 text-right">
-                    الدرجة العظمى (الحد الأقصى)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={newCritMaxScore}
-                    onChange={e => setNewCritMaxScore(Number(e.target.value))}
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3.5 text-xs text-[#f0f9f6] outline-none"
-                  />
-                </div>
-              )}
-
-              {newCritType === 'options' && (
-                <div>
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1.5 text-right">
-                    الخيارات المتاحة (افصل بينها بفاصلة ,)
+                    اسم المعيار <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
-                    value={newCritOptions}
-                    onChange={e => setNewCritOptions(e.target.value)}
-                    placeholder="مثال: ممتاز, جيد جدا, جيد, ضعيف"
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3.5 text-xs text-[#f0f9f6] outline-none"
+                    required
+                    value={newCritName}
+                    onChange={e => setNewCritName(e.target.value)}
+                    placeholder="مثال: أحكام التجويد، الصوت والترتيل، الآداب"
+                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-xs text-[#f0f9f6] outline-none"
                     dir="rtl"
                   />
                 </div>
-              )}
 
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-[#065f46]">
+                <div>
+                  <label className="block text-xs font-semibold text-[#86efac] mb-1.5 text-right">
+                    نوع التقييم
+                  </label>
+                  <select
+                    value={newCritType}
+                    onChange={e => setNewCritType(e.target.value as CriteriaType)}
+                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-xs text-[#f0f9f6] outline-none"
+                  >
+                    <option value="score">تقييم بالدرجات (مثلاً من 10 أو 7 أو 100)</option>
+                    <option value="stars">تقييم بالنجوم (1 إلى 5 نجوم)</option>
+                    <option value="options">خيارات مخصصة (ممتاز، جيد، إلخ)</option>
+                    <option value="text">ملاحظات نصية حرة</option>
+                  </select>
+                </div>
+
+                {newCritType === 'score' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1.5 text-right">
+                      الدرجة العظمى (الحد الأقصى)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={newCritMaxScore}
+                      onChange={e => setNewCritMaxScore(Number(e.target.value))}
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-xs text-[#f0f9f6] outline-none"
+                    />
+                  </div>
+                )}
+
+                {newCritType === 'options' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1.5 text-right">
+                      الخيارات المتاحة (افصل بينها بفاصلة ,)
+                    </label>
+                    <input
+                      type="text"
+                      value={newCritOptions}
+                      onChange={e => setNewCritOptions(e.target.value)}
+                      placeholder="مثال: ممتاز, جيد جدا, جيد, ضعيف"
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-xs text-[#f0f9f6] outline-none"
+                      dir="rtl"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2.5 p-4 sm:p-5 border-t border-[#065f46] shrink-0 bg-[#022c22]/95">
                 <button
                   type="button"
                   onClick={() => setIsCriteriaModalOpen(false)}
-                  className="px-4 py-2.5 rounded-2xl text-xs font-bold text-[#86efac] hover:bg-[#022c22] cursor-pointer"
+                  className="px-4 py-2.5 rounded-2xl text-xs font-bold text-[#86efac] hover:bg-[#064e3b] cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -1696,8 +1699,8 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 
       {/* Delete Criteria Confirmation Modal */}
       {critToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-[#064e3b] border border-red-500/50 rounded-[32px] p-6 shadow-2xl space-y-4 text-center">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-sm bg-[#064e3b] border border-red-500/50 rounded-2xl sm:rounded-[32px] p-5 sm:p-6 shadow-2xl space-y-4 text-center my-auto animate-fadeIn">
             <div className="w-12 h-12 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mx-auto border border-red-500/30">
               <Trash2 className="w-6 h-6" />
             </div>
@@ -1707,11 +1710,11 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                 هل أنت متأكد من رغبتك في حذف معيار <span className="text-[#fbbf24] font-bold">"{critToDelete.name}"</span>؟
               </p>
             </div>
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-3 pt-2 flex-col sm:flex-row">
               <button
                 type="button"
                 onClick={() => setCritToDelete(null)}
-                className="flex-1 py-2.5 rounded-2xl text-xs font-bold bg-[#022c22] text-[#86efac] hover:text-white border border-[#065f46] cursor-pointer"
+                className="w-full sm:flex-1 py-2.5 rounded-2xl text-xs font-bold bg-[#022c22] text-[#86efac] hover:text-white border border-[#065f46] cursor-pointer"
               >
                 إلغاء
               </button>
@@ -1724,7 +1727,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                     await onDeleteCriteria(id);
                   }
                 }}
-                className="flex-1 py-2.5 rounded-2xl text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-lg cursor-pointer transition-all"
+                className="w-full sm:flex-1 py-2.5 rounded-2xl text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-lg cursor-pointer transition-all"
               >
                 نعم، احذف المعيار
               </button>

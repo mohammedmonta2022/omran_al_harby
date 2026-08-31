@@ -393,273 +393,280 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
 
       {/* Add / Edit Student Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-[#064e3b] border border-[#fbbf24]/30 rounded-[32px] p-6 sm:p-8 shadow-2xl shadow-emerald-950/90 my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-[#065f46] mb-5">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-[#064e3b] border border-[#fbbf24]/30 rounded-2xl sm:rounded-[32px] shadow-2xl shadow-emerald-950/90 flex flex-col max-h-[92vh] my-auto overflow-hidden animate-fadeIn">
+            {/* Pinned Modal Header */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-[#065f46] shrink-0 bg-[#064e3b]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#fbbf24] text-[#064e3b] flex items-center justify-center font-bold shadow-md">
+                <div className="w-10 h-10 rounded-2xl bg-[#fbbf24] text-[#064e3b] flex items-center justify-center font-bold shadow-md shrink-0">
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold font-heading text-[#fbbf24]">
+                  <h3 className="text-base sm:text-lg font-bold font-heading text-[#fbbf24]">
                     {editingStudent ? 'تعديل بيانات الطالب' : 'تسجيل طالب جديد في الحلقة'}
                   </h3>
-                  <p className="text-xs text-[#86efac]">
-                    سيقوم الذكاء الاصطناعي بمراجعة بيانات الطالب وتوليد خطة الحفظ اليومية فوراً
+                  <p className="text-[11px] sm:text-xs text-[#86efac]">
+                    إدخال بيانات الطالب لضبط خطة الحفظ والمتابعة بالذكاء الاصطناعي
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-2 rounded-xl text-[#86efac] hover:text-white hover:bg-[#022c22] cursor-pointer"
+                className="p-2 rounded-xl text-[#86efac] hover:text-white hover:bg-[#022c22] cursor-pointer transition-colors"
+                title="إغلاق"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {formError && (
-              <div className="p-3 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-200 text-xs flex items-center gap-2 mb-4">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{formError}</span>
-              </div>
-            )}
+            {/* Scrollable Modal Body */}
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+                {formError && (
+                  <div className="p-3 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-200 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{formError}</span>
+                  </div>
+                )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Row 1: Student Basic Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    اسم الطالب الثلاثي <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formName}
-                    onChange={e => setFormName(e.target.value)}
-                    placeholder="مثال: عبد الله محمد القاسمي"
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                    dir="rtl"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    العمر
-                  </label>
-                  <input
-                    type="number"
-                    min={4}
-                    max={40}
-                    value={formAge}
-                    onChange={e => setFormAge(Number(e.target.value))}
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Credentials & Student Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    كلمة مرور حساب الطالب
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formPassword}
-                    onChange={e => setFormPassword(e.target.value)}
-                    placeholder="كلمة مرور للدخول"
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                    dir="ltr"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    رقم هاتف الطالب (إن وجد)
-                  </label>
-                  <input
-                    type="tel"
-                    value={formPhone}
-                    onChange={e => setFormPhone(e.target.value)}
-                    placeholder="05xxxxxxxx"
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
-
-              {/* Row 3: Parent Info & Multiple Parent Phones */}
-              <div className="bg-[#022c22]/80 border border-[#065f46] rounded-2xl p-4 space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    اسم ولي الأمر
-                  </label>
-                  <input
-                    type="text"
-                    value={formParentName}
-                    onChange={e => setFormParentName(e.target.value)}
-                    placeholder="اسم والد الطالب / ولي أمره"
-                    className="w-full bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                    dir="rtl"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-[#86efac] text-right">
-                      أرقام هواتف أولياء الأمور (واتساب)
+                {/* Row 1: Student Basic Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                      اسم الطالب الثلاثي <span className="text-red-400">*</span>
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleAddParentPhone}
-                      className="text-[11px] text-[#fbbf24] hover:text-[#f59e0b] flex items-center gap-1 font-bold cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>إضافة رقم هاتف آخر</span>
-                    </button>
+                    <input
+                      type="text"
+                      required
+                      value={formName}
+                      onChange={e => setFormName(e.target.value)}
+                      placeholder="مثال: عبد الله محمد القاسمي"
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-sm text-[#f0f9f6] outline-none transition-colors"
+                      dir="rtl"
+                    />
                   </div>
-                  <div className="space-y-2">
-                    {formParentPhones.map((phone, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <input
-                          type="tel"
-                          value={phone}
-                          onChange={e => handleParentPhoneChange(idx, e.target.value)}
-                          placeholder="رقم الواتساب (مثال: 966501234567)"
-                          className="flex-1 bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                          dir="ltr"
-                        />
-                        {formParentPhones.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveParentPhone(idx)}
-                            className="p-2 text-[#86efac] hover:text-red-400 hover:bg-[#022c22] rounded-xl cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                      العمر (سنوات)
+                    </label>
+                    <input
+                      type="number"
+                      min={4}
+                      max={40}
+                      value={formAge}
+                      onChange={e => setFormAge(Number(e.target.value))}
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-sm text-[#f0f9f6] outline-none transition-colors"
+                    />
                   </div>
                 </div>
-              </div>
 
-              {/* Row 4: Quran Position (Surah & Ayah) */}
-              <div className="bg-[#022c22]/80 border border-[#065f46] rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-bold text-[#fbbf24] flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4" />
-                  <span>موضع الحفظ الحالي للقرآن الكريم</span>
-                </div>
-
+                {/* Row 2: Credentials & Student Phone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                      اختر السورة
+                      كلمة مرور حساب الطالب <span className="text-xs text-[#86efac]/70">(للبوابة)</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formPassword}
+                      onChange={e => setFormPassword(e.target.value)}
+                      placeholder="كلمة مرور للدخول"
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-sm text-[#f0f9f6] outline-none transition-colors"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                      رقم هاتف الطالب <span className="text-xs text-[#86efac]/70">(اختياري)</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={formPhone}
+                      onChange={e => setFormPhone(e.target.value)}
+                      placeholder="05xxxxxxxx"
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-sm text-[#f0f9f6] outline-none transition-colors"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Parent Info & Multiple Parent Phones */}
+                <div className="bg-[#022c22]/80 border border-[#065f46] rounded-2xl p-3.5 sm:p-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                      اسم ولي الأمر
+                    </label>
+                    <input
+                      type="text"
+                      value={formParentName}
+                      onChange={e => setFormParentName(e.target.value)}
+                      placeholder="اسم والد الطالب / ولي أمره"
+                      className="w-full bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3.5 text-sm text-[#f0f9f6] outline-none transition-colors"
+                      dir="rtl"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                      <label className="text-xs font-semibold text-[#86efac] text-right">
+                        أرقام هواتف أولياء الأمور (لواتساب المتابعة)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddParentPhone}
+                        className="text-[11px] text-[#fbbf24] hover:text-[#f59e0b] flex items-center gap-1 font-bold cursor-pointer py-1 px-2 rounded-lg hover:bg-[#064e3b]"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>إضافة رقم هاتف آخر</span>
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {formParentPhones.map((phone, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="tel"
+                            value={phone}
+                            onChange={e => handleParentPhoneChange(idx, e.target.value)}
+                            placeholder="رقم الواتساب (مثال: 966501234567)"
+                            className="flex-1 bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3.5 text-sm text-[#f0f9f6] outline-none transition-colors"
+                            dir="ltr"
+                          />
+                          {formParentPhones.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveParentPhone(idx)}
+                              className="p-2 text-[#86efac] hover:text-red-400 hover:bg-[#022c22] rounded-xl cursor-pointer shrink-0"
+                              title="حذف هذا الرقم"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 4: Quran Position (Surah & Ayah) */}
+                <div className="bg-[#022c22]/80 border border-[#065f46] rounded-2xl p-3.5 sm:p-4 space-y-3">
+                  <div className="text-xs font-bold text-[#fbbf24] flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4" />
+                    <span>موضع الحفظ الحالي للقرآن الكريم</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                        اختر السورة
+                      </label>
+                      <select
+                        value={formSurahNum}
+                        onChange={e => setFormSurahNum(Number(e.target.value))}
+                        className="w-full bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3 text-sm text-[#f0f9f6] outline-none"
+                      >
+                        {QURAN_SURAHS.map(s => (
+                          <option key={s.number} value={s.number} className="bg-[#064e3b] text-white">
+                            {s.number}. سورة {s.name} ({s.numberOfAyahs} آية - الجزء {s.juz})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                        رقم الآية التي وصل إليها
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={286}
+                        value={formAyah}
+                        onChange={e => setFormAyah(Number(e.target.value))}
+                        className="w-full bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3 text-sm text-[#f0f9f6] outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 5: Capabilities & Level */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                      طاقة الحفظ الجديد يومياً
                     </label>
                     <select
-                      value={formSurahNum}
-                      onChange={e => setFormSurahNum(Number(e.target.value))}
-                      className="w-full bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
+                      value={formDailyNew}
+                      onChange={e => setFormDailyNew(e.target.value)}
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3 text-sm text-[#f0f9f6] outline-none"
                     >
-                      {QURAN_SURAHS.map(s => (
-                        <option key={s.number} value={s.number} className="bg-[#064e3b] text-white">
-                          {s.number}. سورة {s.name} ({s.numberOfAyahs} آية - الجزء {s.juz})
-                        </option>
-                      ))}
+                      <option value="3 آيات" className="bg-[#064e3b]">3 آيات</option>
+                      <option value="5 آيات" className="bg-[#064e3b]">5 آيات</option>
+                      <option value="نصف وجه" className="bg-[#064e3b]">نصف وجه</option>
+                      <option value="وجه كامل" className="bg-[#064e3b]">وجه كامل</option>
+                      <option value="وجهين" className="bg-[#064e3b]">وجهين</option>
+                      <option value="سورة قصيرة كاملة" className="bg-[#064e3b]">سورة قصيرة كاملة</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                      رقم الآية التي وصل إليها
+                      طاقة المراجعة يومياً
                     </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={286}
-                      value={formAyah}
-                      onChange={e => setFormAyah(Number(e.target.value))}
-                      className="w-full bg-[#064e3b]/80 border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                    />
+                    <select
+                      value={formDailyReview}
+                      onChange={e => setFormDailyReview(e.target.value)}
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3 text-sm text-[#f0f9f6] outline-none"
+                    >
+                      <option value="سورة قصيرة" className="bg-[#064e3b]">سورة قصيرة</option>
+                      <option value="وجه واحد" className="bg-[#064e3b]">وجه واحد</option>
+                      <option value="ربع حزب" className="bg-[#064e3b]">ربع حزب</option>
+                      <option value="نصف حزب" className="bg-[#064e3b]">نصف حزب</option>
+                      <option value="حزب كامل" className="bg-[#064e3b]">حزب كامل</option>
+                      <option value="نصف جزء" className="bg-[#064e3b]">نصف جزء</option>
+                      <option value="جزء كامل" className="bg-[#064e3b]">جزء كامل</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
+                      مستوى الطالب <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      value={formLevel}
+                      onChange={e => setFormLevel(e.target.value as StudentLevel)}
+                      className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2.5 px-3 text-sm text-[#fbbf24] outline-none font-bold"
+                    >
+                      <option value="ضعيف" className="bg-[#064e3b]">ضعيف (يحتاج تيسير وتكرار)</option>
+                      <option value="متوسط" className="bg-[#064e3b]">متوسط (وتيرة متوازنة)</option>
+                      <option value="قوي" className="bg-[#064e3b]">قوي (متميز وسريع الحفظ)</option>
+                    </select>
                   </div>
                 </div>
-              </div>
 
-              {/* Row 5: Capabilities & Level */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Row 6: Notes */}
                 <div>
                   <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    طاقة الحفظ الجديد يومياً
+                    ملاحظات المعلم (نقاط القوة، الصعوبات، أحكام التجويد)
                   </label>
-                  <select
-                    value={formDailyNew}
-                    onChange={e => setFormDailyNew(e.target.value)}
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                  >
-                    <option value="3 آيات" className="bg-[#064e3b]">3 آيات</option>
-                    <option value="5 آيات" className="bg-[#064e3b]">5 آيات</option>
-                    <option value="نصف وجه" className="bg-[#064e3b]">نصف وجه</option>
-                    <option value="وجه كامل" className="bg-[#064e3b]">وجه كامل</option>
-                    <option value="وجهين" className="bg-[#064e3b]">وجهين</option>
-                    <option value="سورة قصيرة كاملة" className="bg-[#064e3b]">سورة قصيرة كاملة</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    طاقة المراجعة يومياً
-                  </label>
-                  <select
-                    value={formDailyReview}
-                    onChange={e => setFormDailyReview(e.target.value)}
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none"
-                  >
-                    <option value="سورة قصيرة" className="bg-[#064e3b]">سورة قصيرة</option>
-                    <option value="وجه واحد" className="bg-[#064e3b]">وجه واحد</option>
-                    <option value="ربع حزب" className="bg-[#064e3b]">ربع حزب</option>
-                    <option value="نصف حزب" className="bg-[#064e3b]">نصف حزب</option>
-                    <option value="حزب كامل" className="bg-[#064e3b]">حزب كامل</option>
-                    <option value="نصف جزء" className="bg-[#064e3b]">نصف جزء</option>
-                    <option value="جزء كامل" className="bg-[#064e3b]">جزء كامل</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                    مستوى الطالب <span className="text-red-400">*</span>
-                  </label>
-                  <select
-                    value={formLevel}
-                    onChange={e => setFormLevel(e.target.value as StudentLevel)}
-                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#fbbf24] outline-none font-bold"
-                  >
-                    <option value="ضعيف" className="bg-[#064e3b]">ضعيف (يحتاج تيسير وتكرار)</option>
-                    <option value="متوسط" className="bg-[#064e3b]">متوسط (وتيرة متوازنة)</option>
-                    <option value="قوي" className="bg-[#064e3b]">قوي (متميز وسريع الحفظ)</option>
-                  </select>
+                  <textarea
+                    rows={2}
+                    value={formNotes}
+                    onChange={e => setFormNotes(e.target.value)}
+                    placeholder="اكتب أي ملاحظة خاصة ليأخذها الذكاء الاصطناعي في الحسبان..."
+                    className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none resize-none"
+                    dir="rtl"
+                  />
                 </div>
               </div>
 
-              {/* Row 6: Notes */}
-              <div>
-                <label className="block text-xs font-semibold text-[#86efac] mb-1 text-right">
-                  ملاحظات المعلم (نقاط القوة، الصعوبات، أحكام التجويد)
-                </label>
-                <textarea
-                  rows={2}
-                  value={formNotes}
-                  onChange={e => setFormNotes(e.target.value)}
-                  placeholder="اكتب أي ملاحظة خاصة ليأخذها الذكاء الاصطناعي في الحسبان..."
-                  className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3 text-sm text-[#f0f9f6] outline-none resize-none"
-                  dir="rtl"
-                />
-              </div>
-
-              {/* Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#065f46]">
+              {/* Pinned Modal Footer */}
+              <div className="flex items-center justify-end gap-3 p-4 sm:p-5 border-t border-[#065f46] shrink-0 bg-[#022c22]/95">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 rounded-2xl text-[#86efac] hover:text-white hover:bg-[#022c22] text-xs font-bold cursor-pointer"
+                  className="px-4 py-2.5 rounded-2xl text-[#86efac] hover:text-white hover:bg-[#064e3b] text-xs font-bold cursor-pointer transition-colors"
                 >
                   إلغاء
                 </button>
@@ -673,7 +680,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-[#064e3b]" />
-                      <span>{editingStudent ? 'حفظ التعديلات' : 'سجل الطالب وتوليد الخطة الذكية'}</span>
+                      <span>{editingStudent ? 'حفظ التعديلات' : 'تسجيل الطالب وتوليد الخطة الذكية'}</span>
                     </>
                   )}
                 </button>
@@ -685,22 +692,25 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
 
       {/* View AI Plan Modal */}
       {viewingPlanStudent && viewingPlanStudent.aiPlan && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-[#064e3b] border border-[#fbbf24]/40 rounded-[32px] p-6 sm:p-8 shadow-2xl shadow-emerald-950/80 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#065f46]">
-              <div className="flex items-center gap-2 text-[#fbbf24] font-bold font-heading text-base">
-                <Sparkles className="w-5 h-5 text-[#fbbf24]" />
-                <span>خطة الذكاء الاصطناعي للطالب: {viewingPlanStudent.name}</span>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-xl bg-[#064e3b] border border-[#fbbf24]/40 rounded-2xl sm:rounded-[32px] shadow-2xl shadow-emerald-950/80 flex flex-col max-h-[90vh] my-auto overflow-hidden animate-fadeIn">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-[#065f46] shrink-0 bg-[#064e3b]">
+              <div className="flex items-center gap-2 text-[#fbbf24] font-bold font-heading text-sm sm:text-base">
+                <Sparkles className="w-5 h-5 text-[#fbbf24] shrink-0" />
+                <span className="line-clamp-1">خطة الذكاء الاصطناعي للطالب: {viewingPlanStudent.name}</span>
               </div>
               <button
+                type="button"
                 onClick={() => setViewingPlanStudent(null)}
-                className="p-1.5 text-[#86efac] hover:text-white rounded-xl cursor-pointer"
+                className="p-1.5 text-[#86efac] hover:text-white rounded-xl cursor-pointer hover:bg-[#022c22]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Scrollable Content */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3.5 text-xs">
               <div className="p-4 rounded-2xl bg-[#022c22]/80 border border-[#065f46]">
                 <span className="text-[11px] font-bold text-[#fbbf24] block mb-1">
                   خارطة الطريق الاستراتيجية:
@@ -710,23 +720,23 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#022c22]/80 border border-[#065f46] space-y-2">
+              <div className="p-4 rounded-2xl bg-[#022c22]/80 border border-[#065f46] space-y-2.5">
                 <span className="text-[11px] font-bold text-[#86efac] block">
                   الورد اليومي المقرر حالياً:
                 </span>
-                <div className="flex items-center justify-between text-[#f0f9f6]">
+                <div className="flex items-center justify-between text-[#f0f9f6] flex-wrap gap-1">
                   <span className="text-[#86efac] font-medium">الحفظ الجديد:</span>
                   <span className="font-bold text-[#fbbf24]">
                     {viewingPlanStudent.aiPlan.currentDailyAssignment?.newMemorization}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[#f0f9f6]">
+                <div className="flex items-center justify-between text-[#f0f9f6] flex-wrap gap-1">
                   <span className="text-[#86efac] font-medium">المراجعة والتثبيت:</span>
                   <span className="font-bold text-emerald-300">
                     {viewingPlanStudent.aiPlan.currentDailyAssignment?.review}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[#f0f9f6]">
+                <div className="flex items-center justify-between text-[#f0f9f6] flex-wrap gap-1">
                   <span className="text-[#86efac] font-medium">القارئ المقترح للاستماع:</span>
                   <span className="font-bold text-[#fbbf24]">
                     {viewingPlanStudent.aiPlan.currentDailyAssignment?.suggestedSheikh}
@@ -738,16 +748,18 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-[#86efac] px-2">
+              <div className="flex items-center justify-between text-[11px] text-[#86efac] px-2 flex-wrap gap-2">
                 <span>تعديل الصعوبة: {viewingPlanStudent.aiPlan.difficultyAdjustment}</span>
                 <span>الأيام المقدرة لختم الجزء: ~{viewingPlanStudent.aiPlan.estimatedDaysToFinishJuz} يوم</span>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-[#065f46] flex justify-end">
+            {/* Footer */}
+            <div className="p-4 sm:p-5 border-t border-[#065f46] shrink-0 bg-[#022c22]/95 flex justify-end">
               <button
+                type="button"
                 onClick={() => setViewingPlanStudent(null)}
-                className="px-6 py-2 rounded-2xl bg-[#fbbf24] hover:bg-[#f59e0b] text-[#064e3b] font-black text-xs cursor-pointer shadow-md"
+                className="px-6 py-2.5 rounded-2xl bg-[#fbbf24] hover:bg-[#f59e0b] text-[#064e3b] font-black text-xs cursor-pointer shadow-md"
               >
                 إغلاق
               </button>
@@ -758,8 +770,8 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
 
       {/* Delete Student Confirmation Modal */}
       {studentToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-[#064e3b] border border-red-500/50 rounded-[32px] p-6 sm:p-7 shadow-2xl space-y-4 text-center">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-sm bg-[#064e3b] border border-red-500/50 rounded-2xl sm:rounded-[32px] p-5 sm:p-7 shadow-2xl space-y-4 text-center my-auto animate-fadeIn">
             <div className="w-14 h-14 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mx-auto border border-red-500/30">
               <Trash2 className="w-7 h-7" />
             </div>
@@ -771,11 +783,11 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                 <span className="text-red-300 text-[11px]">سيتم حذف كافة سجلات التسميع والحضور والخطة الخاصة به.</span>
               </p>
             </div>
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-3 pt-2 flex-col sm:flex-row">
               <button
                 type="button"
                 onClick={() => setStudentToDelete(null)}
-                className="flex-1 py-2.5 rounded-2xl text-xs font-bold bg-[#022c22] text-[#86efac] hover:text-white border border-[#065f46] cursor-pointer"
+                className="w-full sm:flex-1 py-2.5 rounded-2xl text-xs font-bold bg-[#022c22] text-[#86efac] hover:text-white border border-[#065f46] cursor-pointer"
               >
                 إلغاء
               </button>
@@ -788,7 +800,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     await onDeleteStudent(id);
                   }
                 }}
-                className="flex-1 py-2.5 rounded-2xl text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-lg cursor-pointer transition-all"
+                className="w-full sm:flex-1 py-2.5 rounded-2xl text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-lg cursor-pointer transition-all"
               >
                 نعم، تأكيد الحذف
               </button>
