@@ -529,17 +529,84 @@ export class OmranDataService {
     }
   }
 
-  // Export Full Database
+  // Find student by ID or name or phone directly (for portal access)
+  static async findStudentByIdOrQuery(lookup: string): Promise<Student | null> {
+    if (!lookup) return null;
+    const clean = decodeURIComponent(lookup).trim();
+    const cleanNoSpaces = clean.replace(/\s+/g, '');
+
+    // 1. Check in local storage first
+    const localStudents = await this.loadStudents();
+    const localMatch = localStudents.find(
+      s =>
+        s.id === clean ||
+        s.id.toLowerCase() === clean.toLowerCase() ||
+        s.name.trim() === clean ||
+        s.name.replace(/\s+/g, '') === cleanNoSpaces ||
+        s.phone.replace(/\D/g, '') === clean.replace(/\D/g, '') ||
+        (s.parentPhones && s.parentPhones.some(p => p.replace(/\D/g, '') === clean.replace(/\D/g, '')))
+    );
+    if (localMatch) return localMatch;
+
+    // 2. Query Firestore directly by doc ID
+    try {
+      const docSnap = await getDoc(doc(db, 'students', clean));
+      if (docSnap.exists()) {
+        const student = docSnap.data() as Student;
+        // update local cache
+        const current = getLocalData<Student[]>(LS_KEYS.STUDENTS, []);
+        if (!current.some(s => s.id === student.id)) {
+          current.push(student);
+          setLocalData(LS_KEYS.STUDENTS, current);
+        }
+        return student;
+      }
+    } catch (e) {
+      console.warn('Firestore getDoc student error:', e);
+    }
+
+    // 3. Query Firestore entire collection
+    try {
+      const snap = await getDocs(collection(db, 'students'));
+      for (const d of snap.docs) {
+        const s = d.data() as Student;
+        if (
+          s.id === clean ||
+          s.id.toLowerCase() === clean.toLowerCase() ||
+          s.name.trim() === clean ||
+          s.name.replace(/\s+/g, '') === cleanNoSpaces ||
+          s.phone.replace(/\D/g, '') === clean.replace(/\D/g, '') ||
+          (s.parentPhones && s.parentPhones.some(p => p.replace(/\D/g, '') === clean.replace(/\D/g, '')))
+        ) {
+          const current = getLocalData<Student[]>(LS_KEYS.STUDENTS, []);
+          const idx = current.findIndex(x => x.id === s.id);
+          if (idx >= 0) current[idx] = s;
+          else current.push(s);
+          setLocalData(LS_KEYS.STUDENTS, current);
+          return s;
+        }
+      }
+    } catch (e) {
+      console.warn('Firestore scan students error:', e);
+    }
+
+    return null;
+  }
+
+  // Export Full Database (Complete & Lossless)
   static async exportFullBackup(): Promise<FullBackupData> {
-    const students = await this.loadStudents();
-    const attendance = await this.loadAttendance();
-    const evaluations = await this.loadEvaluations();
-    const evaluationCriteria = await this.loadCriteria();
-    const settings = await this.loadSettings();
-    const chatMessages = await this.loadChats();
+    const [students, attendance, evaluations, evaluationCriteria, settings, chatMessages] =
+      await Promise.all([
+        this.loadStudents(),
+        this.loadAttendance(),
+        this.loadEvaluations(),
+        this.loadCriteria(),
+        this.loadSettings(),
+        this.loadChats()
+      ]);
 
     return {
-      version: '1.0.0',
+      version: '1.2.0',
       exportDate: new Date().toISOString(),
       students,
       attendance,
@@ -550,7 +617,7 @@ export class OmranDataService {
       userAccounts: [
         {
           id: 'admin-1',
-          username: 'محمد منتصر',
+          username: settings.teacherName || 'محمد منتصر',
           role: 'admin',
           phone: '0500000000',
           createdAt: new Date().toISOString()
@@ -559,47 +626,64 @@ export class OmranDataService {
     };
   }
 
-  // Import / Restore Full Database
-  static async importFullBackup(backup: FullBackupData): Promise<void> {
-    if (!backup || !backup.students) {
-      throw new Error('ملف النسخة الاحتياطية غير صالح');
+  // Import / Restore Full Database (Comprehensive & Safe)
+  static async importFullBackup(backup: FullBackupData): Promise<{
+    studentsCount: number;
+    attendanceCount: number;
+    evaluationsCount: number;
+    criteriaCount: number;
+  }> {
+    if (!backup || typeof backup !== 'object') {
+      throw new Error('ملف النسخة الاحتياطية غير صالح أو تالف.');
     }
 
-    // Save to local storage
-    setLocalData(LS_KEYS.STUDENTS, backup.students || []);
-    setLocalData(LS_KEYS.ATTENDANCE, backup.attendance || []);
-    setLocalData(LS_KEYS.EVALUATIONS, backup.evaluations || []);
-    setLocalData(LS_KEYS.CRITERIA, backup.evaluationCriteria || DEFAULT_CRITERIA);
-    setLocalData(LS_KEYS.SETTINGS, backup.settings || DEFAULT_SETTINGS);
-    setLocalData(LS_KEYS.CHATS, backup.chatMessages || []);
+    const studentsList = Array.isArray(backup.students) ? backup.students : [];
+    const attendanceList = Array.isArray(backup.attendance) ? backup.attendance : [];
+    const evaluationsList = Array.isArray(backup.evaluations) ? backup.evaluations : [];
+    const criteriaList = Array.isArray(backup.evaluationCriteria) && backup.evaluationCriteria.length > 0
+      ? backup.evaluationCriteria
+      : DEFAULT_CRITERIA;
+    const settingsData = backup.settings || DEFAULT_SETTINGS;
+    const chatList = Array.isArray(backup.chatMessages) ? backup.chatMessages : [];
 
-    // Try saving to Firestore
+    // 1. Immediately Save to LocalStorage for zero-delay offline reliability
+    setLocalData(LS_KEYS.STUDENTS, studentsList);
+    setLocalData(LS_KEYS.ATTENDANCE, attendanceList);
+    setLocalData(LS_KEYS.EVALUATIONS, evaluationsList);
+    setLocalData(LS_KEYS.CRITERIA, criteriaList);
+    setLocalData(LS_KEYS.SETTINGS, settingsData);
+    setLocalData(LS_KEYS.CHATS, chatList);
+
+    // 2. Persist to Firestore concurrently
     try {
-      if (backup.students) {
-        for (const s of backup.students) {
-          await setDoc(doc(db, 'students', s.id), s);
-        }
+      const promises: Promise<any>[] = [];
+
+      for (const s of studentsList) {
+        if (s?.id) promises.push(setDoc(doc(db, 'students', s.id), s));
       }
-      if (backup.attendance) {
-        for (const a of backup.attendance) {
-          await setDoc(doc(db, 'attendance', a.id), a);
-        }
+      for (const a of attendanceList) {
+        if (a?.id) promises.push(setDoc(doc(db, 'attendance', a.id), a));
       }
-      if (backup.evaluations) {
-        for (const ev of backup.evaluations) {
-          await setDoc(doc(db, 'evaluations', ev.id), ev);
-        }
+      for (const ev of evaluationsList) {
+        if (ev?.id) promises.push(setDoc(doc(db, 'evaluations', ev.id), ev));
       }
-      if (backup.evaluationCriteria) {
-        for (const c of backup.evaluationCriteria) {
-          await setDoc(doc(db, 'criteria', c.id), c);
-        }
+      for (const c of criteriaList) {
+        if (c?.id) promises.push(setDoc(doc(db, 'criteria', c.id), c));
       }
-      if (backup.settings) {
-        await setDoc(doc(db, 'settings', 'main'), backup.settings);
+      if (settingsData) {
+        promises.push(setDoc(doc(db, 'settings', 'main'), settingsData));
       }
+
+      await Promise.allSettled(promises);
     } catch (e) {
-      console.warn('Firestore restore partially skipped to local:', e);
+      console.warn('Firestore restore background batch sync notice:', e);
     }
+
+    return {
+      studentsCount: studentsList.length,
+      attendanceCount: attendanceList.length,
+      evaluationsCount: evaluationsList.length,
+      criteriaCount: criteriaList.length
+    };
   }
 }

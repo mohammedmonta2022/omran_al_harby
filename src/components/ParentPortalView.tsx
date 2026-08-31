@@ -5,7 +5,10 @@ import {
   Award,
   Volume2,
   Share2,
-  LogOut
+  LogOut,
+  Layers,
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 import { Student, AttendanceRecord, StudentEvaluation, AppSettings } from '../types';
 
@@ -35,7 +38,8 @@ export const ParentPortalView: React.FC<ParentPortalViewProps> = ({
       ? Math.round((presentsCount / studentAttendance.length) * 100)
       : 100;
 
-  const latestEvaluation = studentEvaluations.length > 0 ? studentEvaluations[studentEvaluations.length - 1] : null;
+  const latestEvaluation =
+    studentEvaluations.length > 0 ? studentEvaluations[studentEvaluations.length - 1] : null;
 
   return (
     <div className="min-h-screen bg-[#022c22] text-[#f0f9f6] p-4 sm:p-6 lg:p-8 relative z-10">
@@ -51,7 +55,7 @@ export const ParentPortalView: React.FC<ParentPortalViewProps> = ({
                 بوابة المتابعة الحية لطلاب القرآن الكريم
               </h1>
               <p className="text-xs text-[#fbbf24] font-bold">
-                {settings.halaqahName} • إشراف: {settings.teacherName}
+                {settings.halaqahName} • إشراف المعلم: {settings.teacherName}
               </p>
             </div>
           </div>
@@ -103,22 +107,22 @@ export const ParentPortalView: React.FC<ParentPortalViewProps> = ({
           </div>
         </div>
 
-        {/* Today's AI Assignment Box */}
+        {/* Tomorrow's Target / Current Assignment Box */}
         <div className="bg-[#064e3b]/60 border border-[#065f46] rounded-[32px] p-6 sm:p-8 space-y-4 shadow-xl backdrop-blur-md">
           <div className="flex items-center justify-between pb-3 border-b border-[#065f46]">
             <h3 className="text-base font-bold font-heading text-white flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-[#fbbf24]" />
-              <span>الورد اليومي المطلوب (خطة الذكاء الاصطناعي)</span>
+              <span>مقرر الحفظ والمراجعة المطلوب لغدٍ بإذن الله تعالى</span>
             </h3>
             <span className="text-xs px-3 py-1 rounded-xl bg-[#fbbf24]/20 text-[#fbbf24] font-bold border border-[#fbbf24]/30">
-              محدثة لليوم
+              معتمد من المعلم
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-5 rounded-2xl bg-[#022c22] border border-[#065f46]">
               <span className="text-xs font-bold text-[#fbbf24] block mb-1">
-                الحفظ الجديد المقرر لليوم:
+                ✨ ورد الحفظ الجديد لغد:
               </span>
               <span className="text-base font-bold text-white font-heading">
                 {student.aiPlan?.currentDailyAssignment?.newMemorization ||
@@ -128,11 +132,11 @@ export const ParentPortalView: React.FC<ParentPortalViewProps> = ({
 
             <div className="p-5 rounded-2xl bg-[#022c22] border border-[#065f46]">
               <span className="text-xs font-bold text-[#86efac] block mb-1">
-                المراجعة والتثبيت المقررة:
+                🔄 ورد المراجعة والتثبيت لغد:
               </span>
               <span className="text-base font-bold text-white font-heading">
                 {student.aiPlan?.currentDailyAssignment?.review ||
-                  `مراجعة السور السابقة`}
+                  `مراجعة وتثبيت السور السابقة`}
               </span>
             </div>
           </div>
@@ -151,39 +155,46 @@ export const ParentPortalView: React.FC<ParentPortalViewProps> = ({
 
           {student.aiPlan?.currentDailyAssignment?.dailyNote && (
             <div className="p-4 rounded-2xl bg-[#022c22] border border-[#065f46] text-xs text-[#86efac]">
-              <strong className="text-[#fbbf24]">توجيه منزلي مبارك: </strong>
+              <strong className="text-[#fbbf24]">📝 توجيه المتابعة المنزلية: </strong>
               {student.aiPlan.currentDailyAssignment.dailyNote}
             </div>
           )}
         </div>
 
-        {/* Latest Evaluation & Recitation Result */}
+        {/* Latest Recitation & Evaluation Record */}
         {latestEvaluation && (
           <div className="bg-[#064e3b]/60 border border-[#065f46] rounded-[32px] p-6 space-y-4 shadow-xl backdrop-blur-md">
-            <h3 className="text-base font-bold font-heading text-white flex items-center gap-2">
-              <Award className="w-5 h-5 text-[#fbbf24]" />
-              <span>آخر تقييم وتسميع معتمد في الحلقة ({latestEvaluation.date})</span>
-            </h3>
+            <div className="flex items-center justify-between pb-3 border-b border-[#065f46]">
+              <h3 className="text-base font-bold font-heading text-white flex items-center gap-2">
+                <Award className="w-5 h-5 text-[#fbbf24]" />
+                <span>آخر تسميع وتقييم مسجل في الحلقة ({latestEvaluation.date})</span>
+              </h3>
+              <span className="text-xs text-[#86efac] font-bold">
+                تاريخ: {latestEvaluation.date}
+              </span>
+            </div>
 
-            <div className="p-5 rounded-2xl bg-[#022c22] border border-[#065f46] space-y-3 text-xs">
-              <div className="flex items-center justify-between text-slate-200">
-                <span className="text-[#86efac]">ما تم تسميعه:</span>
-                <span className="font-bold text-[#fbbf24]">
-                  {latestEvaluation.recitationDetails?.newMemorizationAchieved}
+            <div className="p-5 rounded-2xl bg-[#022c22] border border-[#065f46] space-y-3.5 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-slate-200">
+                <span className="text-[#86efac] font-bold">📖 ما سمّعه الطالب في الحفظ الجديد:</span>
+                <span className="font-bold text-[#fbbf24] text-sm">
+                  {latestEvaluation.recitationDetails?.newMemorizationAchieved || 'تم التسميع بنجاح'}
                 </span>
               </div>
 
-              {latestEvaluation.recitationDetails?.teacherNotes && (
-                <div className="text-[#f0f9f6] pt-2 border-t border-[#065f46]">
-                  <span className="text-[#fbbf24] font-bold">ملاحظات المعلم: </span>
-                  {latestEvaluation.recitationDetails.teacherNotes}
+              {latestEvaluation.recitationDetails?.reviewAchieved && (
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 text-slate-200 pt-2 border-t border-[#065f46]">
+                  <span className="text-[#86efac] font-bold">🔄 ما سمّعه في المراجعة والتثبيت:</span>
+                  <span className="font-bold text-white text-right">
+                    {latestEvaluation.recitationDetails.reviewAchieved}
+                  </span>
                 </div>
               )}
 
-              {latestEvaluation.aiFeedback?.analysis && (
-                <div className="p-3.5 rounded-2xl bg-[#064e3b]/50 border border-[#065f46] text-[#f0f9f6]">
-                  <span className="text-[#86efac] font-bold block mb-1">التحليل القرآني الذكي:</span>
-                  <p>{latestEvaluation.aiFeedback.analysis}</p>
+              {latestEvaluation.recitationDetails?.teacherNotes && (
+                <div className="text-[#f0f9f6] pt-2 border-t border-[#065f46]">
+                  <span className="text-[#fbbf24] font-bold">💡 ملاحظات وتوجيه المعلم: </span>
+                  {latestEvaluation.recitationDetails.teacherNotes}
                 </div>
               )}
             </div>

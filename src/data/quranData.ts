@@ -229,18 +229,91 @@ export function calculateRealisticQuranAssignment(
     reviewText = `مراجعة قصار السور من سورة الفيل إلى سورة الفلق وتثبيتها`;
   }
 
-  const reciter = level === 'ضعيف' ? FAMOUS_RECITERS[0].name : FAMOUS_RECITERS[1].name;
+  // Recommended reader based on level
+  const suggestedSheikh =
+    level === 'ضعيف'
+      ? 'الشيخ محمود خليل الحصري (المصحف المعلم - سرعة معتدلة ومخارج واضحة)'
+      : level === 'قوي'
+      ? 'الشيخ علي بن عبد الرحمن الحذيفي أو الشيخ مشاري العفاسي'
+      : 'الشيخ محمد صديق المنشاوي (المصحف المرتل)';
+
+  const dailyNote = isCompleteSurah
+    ? `تهانينا للطالب على إتمام سورة ${surah.name}! يرجى التسميع للوالدين مرتين قبل النوم.`
+    : `يرجى تكرار الآيات المقررة (${validStartAyah} - ${endAyah}) 5 مرات على الأقل بالاستماع والترديد.`;
+
+  const tajweedFocus =
+    totalAyahs <= 20
+      ? 'تحقيق همزات القطع وضبط الغنن وأحكام القلقلة'
+      : 'مراعاة المدود الطبيعية والفرعية وضبط أزمنة الغنن ومخارج الحروف';
 
   return {
     surah,
+    fromAyah: validStartAyah,
     startAyah: validStartAyah,
-    endAyah,
+    toAyah: endAyah,
     totalAyahs,
     newMemorization: newMemorizationText,
     review: reviewText,
-    suggestedSheikh: reciter,
-    tajweedFocus: totalAyahs <= 30 ? "ضبط الغنن والمدود الطبيعية ومخارج الحروف بدقة" : "تطبيق أحكام النون الساكنة والتنوين والمد المتصل والمنفصل",
-    dailyNote: `الاستماع للشيخ المقترح 3 مرات بتركيز، ثم تكرار الآيات المقررة غيباً 5 مرات قبل النوم والتسميع على ولي الأمر.`
+    suggestedSheikh,
+    tajweedFocus,
+    dailyNote,
+    nextSurahRecommendation
   };
+}
+
+export const REVIEW_TYPES = [
+  "مراجعة صغرى (السور القريبة)",
+  "مراجعة كبرى (الأجزاء السابقة)",
+  "مراجعة تراكمية",
+  "تثبيت المصحف",
+  "اختبار مرحلي / سبر",
+  "سورة مخصصة",
+  "مراجعة عامة"
+];
+
+/**
+ * Format Quran recitation range into clear Arabic text, supporting single or multi-surah ranges
+ */
+export function formatQuranPortion(
+  surahName: string,
+  fromAyah: number,
+  toAyah: number,
+  totalAyahs?: number,
+  type?: string,
+  toSurahName?: string,
+  toSurahTotalAyahs?: number
+): string {
+  const cleanFromSurah = surahName.startsWith("سورة ") ? surahName.replace("سورة ", "").trim() : surahName.trim();
+  const cleanToSurah = toSurahName
+    ? (toSurahName.startsWith("سورة ") ? toSurahName.replace("سورة ", "").trim() : toSurahName.trim())
+    : cleanFromSurah;
+
+  let text = "";
+
+  // Check if reciting across multiple surahs (e.g. from An-Nas 1 to Al-Alaq 4)
+  if (toSurahName && cleanToSurah !== cleanFromSurah) {
+    text = `من سورة ${cleanFromSurah} (الآية ${fromAyah}) إلى سورة ${cleanToSurah} (الآية ${toAyah})`;
+    if (toSurahTotalAyahs && toAyah >= toSurahTotalAyahs) {
+      text += ` (ختام سورة ${cleanToSurah})`;
+    }
+  } else {
+    // Single Surah range
+    const isFull = totalAyahs ? (fromAyah === 1 && toAyah >= totalAyahs) : false;
+    if (isFull) {
+      text = `سورة ${cleanFromSurah} كاملة (الآيات 1 - ${totalAyahs})`;
+    } else if (fromAyah === toAyah) {
+      text = `سورة ${cleanFromSurah}: الآية (${fromAyah})`;
+    } else {
+      text = `سورة ${cleanFromSurah}: من الآية (${fromAyah}) إلى الآية (${toAyah})`;
+      if (totalAyahs && toAyah >= totalAyahs) {
+        text += ` (ختام السورة)`;
+      }
+    }
+  }
+
+  if (type && !type.includes("حفظ جديد")) {
+    return `${type}: ${text}`;
+  }
+  return text;
 }
 

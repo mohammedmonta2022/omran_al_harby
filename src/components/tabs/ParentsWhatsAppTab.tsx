@@ -4,20 +4,17 @@ import {
   MessageCircle,
   Copy,
   Check,
-  Sparkles,
   Phone,
-  User,
-  CheckCircle,
-  XCircle,
-  Clock,
-  HelpCircle,
   Edit,
   ExternalLink,
   RefreshCw,
-  Search
+  Search,
+  BookOpen,
+  Sparkles,
+  Award
 } from 'lucide-react';
 import { Student, AttendanceRecord, StudentEvaluation, AppSettings } from '../../types';
-import { calculateRealisticQuranAssignment } from '../../data/quranData';
+import { calculateRealisticQuranAssignment, formatQuranPortion, getSurahInfo } from '../../data/quranData';
 
 interface ParentsWhatsAppTabProps {
   students: Student[];
@@ -38,17 +35,25 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Generated messages map: studentId -> message string
+  // Messages map: studentId -> message string
   const [messagesMap, setMessagesMap] = useState<Record<string, string>>({});
-  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>('');
 
-  // Helper to generate instant, complete and rich message
-  const buildFullMessage = (student: Student, status: string, evalData?: StudentEvaluation): string => {
-    const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/?portal=${encodeURIComponent(student.id)}` : '';
-    
-    // Calculate realistic quran assignment if needed
+  // Helper to build pristine, 100% accurate and comprehensive message from teacher records
+  const buildComprehensiveMessage = (
+    student: Student,
+    status: string,
+    evalData?: StudentEvaluation
+  ): string => {
+    let baseUrl = '';
+    if (typeof window !== 'undefined') {
+      const cleanHref = window.location.origin + window.location.pathname;
+      baseUrl = cleanHref.replace(/\/+$/, '');
+    }
+    const portalUrl = baseUrl ? `${baseUrl}/?portal=${encodeURIComponent(student.id)}` : '';
+
+    // Realistic calculation fallback if not evaluated yet
     const realisticAssignment = calculateRealisticQuranAssignment(
       student.currentSurah || student.currentSurahName || 78,
       student.currentAyah || 1,
@@ -56,51 +61,161 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
       student.dailyNewTarget || 'نصف وجه'
     );
 
-    // Today recited details
-    const todayNewRecited = evalData?.recitationDetails?.newMemorizationAchieved || 
-      (student.aiPlan?.currentDailyAssignment?.newMemorization ? `أتم تسميع ${student.aiPlan.currentDailyAssignment.newMemorization} بإتقان` : realisticAssignment.newMemorization);
-    
-    const todayReviewRecited = evalData?.recitationDetails?.reviewAchieved || 
-      (student.aiPlan?.currentDailyAssignment?.review ? `أتم مراجعة ${student.aiPlan.currentDailyAssignment.review}` : realisticAssignment.review);
-    
-    const teacherNotes = evalData?.recitationDetails?.teacherNotes || (status === 'حاضر' ? 'أداء طيب ومبارك، نسأل الله له التوفيق والرفعة' : 'نرجو المتابعة والتواصل مع المعلم');
+    // 1. Today's recitation (what was recited today)
+    let todayNewText = '';
+    let todayReviewText = '';
 
-    // Tomorrow targets
-    const tomorrowNew = student.aiPlan?.currentDailyAssignment?.newMemorization || realisticAssignment.newMemorization;
-    const tomorrowReview = student.aiPlan?.currentDailyAssignment?.review || realisticAssignment.review;
-    const sheikh = student.aiPlan?.currentDailyAssignment?.suggestedSheikh || realisticAssignment.suggestedSheikh;
-    const homeNote = student.aiPlan?.currentDailyAssignment?.dailyNote || realisticAssignment.dailyNote;
+    if (evalData?.recitationDetails?.todayNewItem) {
+      const item = evalData.recitationDetails.todayNewItem;
+      const sInfo = getSurahInfo(item.surahNumber);
+      const toSurahInfo = item.toSurahNumber ? getSurahInfo(item.toSurahNumber) : sInfo;
+      todayNewText = formatQuranPortion(
+        item.surahName || sInfo.name,
+        item.fromAyah,
+        item.toAyah,
+        sInfo.numberOfAyahs,
+        item.type,
+        item.toSurahName || toSurahInfo.name,
+        toSurahInfo.numberOfAyahs
+      );
+    } else if (evalData?.recitationDetails?.newMemorizationAchieved) {
+      todayNewText = evalData.recitationDetails.newMemorizationAchieved;
+    } else if (status === 'حاضر') {
+      todayNewText = `سورة ${student.currentSurahName}: من الآية (${student.currentAyah}) (أتم التسميع)`;
+    } else {
+      todayNewText = 'لم يسمّع اليوم نظراً لعدم الحضور';
+    }
 
+    if (evalData?.recitationDetails?.todayReviewItems && evalData.recitationDetails.todayReviewItems.length > 0) {
+      const reviewLines = evalData.recitationDetails.todayReviewItems.map(r => {
+        const sInfo = getSurahInfo(r.surahNumber);
+        const toSurahInfo = r.toSurahNumber ? getSurahInfo(r.toSurahNumber) : sInfo;
+        return formatQuranPortion(
+          r.surahName || sInfo.name,
+          r.fromAyah,
+          r.toAyah,
+          sInfo.numberOfAyahs,
+          r.type,
+          r.toSurahName || toSurahInfo.name,
+          toSurahInfo.numberOfAyahs
+        );
+      });
+      todayReviewText = reviewLines.join('\n▫️ ');
+    } else if (evalData?.recitationDetails?.reviewAchieved) {
+      todayReviewText = evalData.recitationDetails.reviewAchieved;
+    } else if (status === 'حاضر') {
+      todayReviewText = `مراجعة وتثبيت ما تم حفظه من سورة ${student.currentSurahName}`;
+    } else {
+      todayReviewText = 'لم يراجع في الحلقة اليوم';
+    }
+
+    const teacherNote =
+      evalData?.recitationDetails?.teacherNotes ||
+      (status === 'حاضر'
+        ? 'أداء متميز وتلاوة مباركة ما شاء الله، نسأل الله له التوفيق.'
+        : 'نرجو المتابعة والتواصل مع المعلم.');
+
+    // 2. Tomorrow's required assignment
+    let tomNewText = '';
+    let tomReviewText = '';
+
+    if (evalData?.recitationDetails?.tomorrowNewItem) {
+      const tItem = evalData.recitationDetails.tomorrowNewItem;
+      const sInfo = getSurahInfo(tItem.surahNumber);
+      const toSurahInfo = tItem.toSurahNumber ? getSurahInfo(tItem.toSurahNumber) : sInfo;
+      tomNewText = formatQuranPortion(
+        tItem.surahName || sInfo.name,
+        tItem.fromAyah,
+        tItem.toAyah,
+        sInfo.numberOfAyahs,
+        tItem.type,
+        tItem.toSurahName || toSurahInfo.name,
+        toSurahInfo.numberOfAyahs
+      );
+    } else if (student.aiPlan?.currentDailyAssignment?.newMemorization) {
+      tomNewText = student.aiPlan.currentDailyAssignment.newMemorization;
+    } else {
+      tomNewText = realisticAssignment.newMemorization;
+    }
+
+    if (evalData?.recitationDetails?.tomorrowReviewItem) {
+      const tRev = evalData.recitationDetails.tomorrowReviewItem;
+      const sInfo = getSurahInfo(tRev.surahNumber);
+      const toSurahInfo = tRev.toSurahNumber ? getSurahInfo(tRev.toSurahNumber) : sInfo;
+      tomReviewText = formatQuranPortion(
+        tRev.surahName || sInfo.name,
+        tRev.fromAyah,
+        tRev.toAyah,
+        sInfo.numberOfAyahs,
+        tRev.type,
+        tRev.toSurahName || toSurahInfo.name,
+        toSurahInfo.numberOfAyahs
+      );
+    } else if (student.aiPlan?.currentDailyAssignment?.review) {
+      tomReviewText = student.aiPlan.currentDailyAssignment.review;
+    } else {
+      tomReviewText = realisticAssignment.review;
+    }
+
+    const sheikh =
+      evalData?.recitationDetails?.tomorrowSuggestedSheikh ||
+      student.aiPlan?.currentDailyAssignment?.suggestedSheikh ||
+      realisticAssignment.suggestedSheikh;
+
+    const homeNote =
+      evalData?.recitationDetails?.tomorrowDailyNote ||
+      student.aiPlan?.currentDailyAssignment?.dailyNote ||
+      realisticAssignment.dailyNote;
+
+    // Construct clean, formatted WhatsApp message
     let msg = `السلام عليكم ورحمة الله وبركاته 🌿\n`;
-    msg += `المكرم ولي أمر الطالب العزيز / *${student.name}* حفظه الله\n`;
+    msg += `المكرم ولي أمر الطالب العزيز / *${student.name}* حفظه الله ورعاه\n`;
     msg += `نحيطكم علماً بتقرير متابعة الطالب في *${settings.halaqahName || 'حلقة القرآن الكريم'}* ليوم ${new Date().toLocaleDateString('ar-SA')}:\n\n`;
-    
+
     msg += `📌 *حالة الحضور اليوم:* ${status}\n\n`;
 
-    msg += `📖 *ما تم تسميعه وإنجازه اليوم بالتفصيل:*\n`;
-    msg += `🔹 *الحفظ الجديد اليوم:* ${todayNewRecited}\n`;
-    msg += `🔹 *المراجعة والتثبيت اليوم:* ${todayReviewRecited}\n`;
-    if (evalData?.aiFeedback?.studentProgressStatus) {
-      msg += `⭐ *حالة التقدم:* ${evalData.aiFeedback.studentProgressStatus}\n`;
+    msg += `📖 *ما تم تسميعه وإنجازه اليوم في الحلقة بالتفصيل:*\n`;
+    msg += `🔹 *الحفظ الجديد اليوم:* ${todayNewText}\n`;
+    if (todayReviewText.includes('\n')) {
+      msg += `🔹 *المراجعة والتثبيت اليوم:*\n▫️ ${todayReviewText}\n`;
+    } else {
+      msg += `🔹 *المراجعة والتثبيت اليوم:* ${todayReviewText}\n`;
     }
-    msg += `💡 *ملاحظات وتوجيه المعلم:* ${teacherNotes}\n\n`;
+    msg += `💡 *ملاحظات وتوجيه المعلم:* ${teacherNote}\n\n`;
 
     msg += `🎯 *المقرر المطلوب تسميعه وحفظه لغدٍ بإذن الله تعالى:*\n`;
-    msg += `✨ *ورد الحفظ الجديد لغد:* ${tomorrowNew}\n`;
-    msg += `🔄 *ورد المراجعة والتثبيت لغد:* ${tomorrowReview}\n`;
+    msg += `✨ *ورد الحفظ الجديد لغد:* ${tomNewText}\n`;
+    msg += `🔄 *ورد المراجعة والتثبيت لغد:* ${tomReviewText}\n`;
     msg += `🎧 *القارئ المقترح للاستماع له بالمنزل:* ${sheikh}\n`;
     msg += `📝 *توجيه المتابعة المنزلية:* ${homeNote}\n\n`;
 
-    msg += `🔗 *لمتابعة ملف الطالب وخطة حفظه اليومية مباشرة عبر البوابة الحية، اضغط على الرابط:* \n`;
+    msg += `🔗 *لمتابعة ملف الطالب وخطة حفظه وسجل درجاته مباشرة عبر البوابة الحية، اضغط على الرابط:* \n`;
     msg += `${portalUrl}\n\n`;
-    msg += `جزاكم الله خيراً وبارك في أبنائنا الكرام 🤲\n`;
+    msg += `جزاكم الله خيراً ونفع بكم وبأبنائنا الكرام 🤲\n`;
     msg += `معلم الحلقة: *${settings.teacherName || 'الشيخ محمد منتصر'}*`;
 
     return msg;
   };
 
-  // Generate single message
-  const generateMessageForStudent = async (student: Student) => {
+  // Re-sync messages whenever students, evaluations, or attendance change
+  useEffect(() => {
+    const updatedMap: Record<string, string> = {};
+    students.forEach(student => {
+      const todayAtt = attendance.find(
+        a => a.date === todayStr && a.studentId === student.id
+      );
+      const status = todayAtt?.status || 'حاضر';
+      const evalData = evaluations.find(
+        e => e.date === todayStr && e.studentId === student.id
+      );
+
+      updatedMap[student.id] = buildComprehensiveMessage(student, status, evalData);
+    });
+
+    setMessagesMap(updatedMap);
+  }, [students, attendance, evaluations, settings]);
+
+  const handleRefreshStudentMessage = (student: Student) => {
     const todayAtt = attendance.find(
       a => a.date === todayStr && a.studentId === student.id
     );
@@ -108,60 +223,13 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
     const evalData = evaluations.find(
       e => e.date === todayStr && e.studentId === student.id
     );
-    const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/?portal=${student.id}` : '';
 
-    // First, set instant rich fallback
-    const instantMsg = buildFullMessage(student, status, evalData);
+    const freshMsg = buildComprehensiveMessage(student, status, evalData);
     setMessagesMap(prev => ({
       ...prev,
-      [student.id]: instantMsg
+      [student.id]: freshMsg
     }));
-
-    try {
-      const res = await fetch('/api/gemini/generate-whatsapp-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          student,
-          attendanceStatus: status,
-          evaluation: evalData,
-          halaqahName: settings.halaqahName,
-          teacherName: settings.teacherName,
-          clientPortalUrl: portalUrl
-        })
-      });
-      const data = await res.json();
-      if (data.message) {
-        setMessagesMap(prev => ({
-          ...prev,
-          [student.id]: data.message
-        }));
-      }
-    } catch (e) {
-      console.warn('Using local formatted WhatsApp message:', e);
-    }
   };
-
-  // Generate for all students
-  const handleGenerateAll = async () => {
-    setIsGeneratingAll(true);
-    for (const s of students) {
-      await generateMessageForStudent(s);
-    }
-    setIsGeneratingAll(false);
-  };
-
-  // Initialize messages on load
-  useEffect(() => {
-    if (students.length > 0) {
-      // Auto-generate for preselected or first few
-      students.forEach(s => {
-        if (!messagesMap[s.id]) {
-          generateMessageForStudent(s);
-        }
-      });
-    }
-  }, [students, attendance, evaluations]);
 
   const handleCopy = (studentId: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -170,7 +238,6 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
   };
 
   const handleSendWhatsApp = (phone: string, text: string) => {
-    // Format phone: remove non-digits
     const cleanPhone = phone.replace(/\D/g, '');
     const encoded = encodeURIComponent(text);
     const url = `https://wa.me/${cleanPhone}?text=${encoded}`;
@@ -192,9 +259,10 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
     }
   };
 
-  const filteredStudents = students.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.parentName?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStudents = students.filter(
+    s =>
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.parentName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -207,19 +275,13 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
             <span>رسائل الواتساب اليومية لأولياء الأمور</span>
           </h2>
           <p className="text-xs text-[#86efac]/90 mt-1">
-            صياغة رسائل راقية بالذكاء الاصطناعي مع تقارير الحضور والتسميع وروابط البوابة الحية
+            صياغة رسائل تفصيلية ومباشرة تعكس ما سمّعه الطالب اليوم ومقرره لغد وروابط البوابة الحية
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleGenerateAll}
-            disabled={isGeneratingAll}
-            className="px-5 py-2.5 rounded-2xl bg-[#fbbf24] hover:bg-[#f59e0b] disabled:opacity-50 text-[#064e3b] text-xs sm:text-sm font-black shadow-[0_0_20px_rgba(251,191,36,0.3)] flex items-center gap-2 transition-all cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4 text-[#064e3b]" />
-            <span>{isGeneratingAll ? 'جاري توليد جميع الرسائل...' : 'تحديث وتوليد الكل بالذكاء الاصطناعي'}</span>
-          </button>
+        <div className="flex items-center gap-2 text-xs text-[#fbbf24] bg-[#022c22] px-4 py-2 rounded-2xl border border-[#065f46]">
+          <BookOpen className="w-4 h-4 text-[#fbbf24]" />
+          <span>تُحدّث الرسائل تلقائياً وفورياً عند حفظ التسميع</span>
         </div>
       </div>
 
@@ -247,11 +309,11 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
             const todayAtt = attendance.find(
               a => a.date === todayStr && a.studentId === student.id
             );
-            const status = todayAtt?.status || 'لم يسجل';
+            const status = todayAtt?.status || 'حاضر';
             const evalData = evaluations.find(
               e => e.date === todayStr && e.studentId === student.id
             );
-            const msg = messagesMap[student.id] || 'جاري تجهيز الرسالة الذكية...';
+            const msg = messagesMap[student.id] || buildComprehensiveMessage(student, status, evalData);
             const isCopied = copiedId === student.id;
 
             return (
@@ -260,7 +322,7 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
                 className="bg-[#064e3b]/60 border border-[#065f46] hover:border-[#fbbf24]/50 rounded-[32px] p-6 transition-all shadow-xl backdrop-blur-md"
               >
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
-                  {/* Left Info: Student & Parent Profile */}
+                  {/* Left Info: Student Profile & Numbers */}
                   <div className="lg:w-1/3 space-y-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] text-[#064e3b] flex items-center justify-center font-bold text-sm shrink-0 shadow-md">
@@ -295,14 +357,14 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
                       <div className="flex items-center justify-between text-slate-300">
                         <span className="text-[#86efac]">تسميع اليوم:</span>
                         <span className="font-bold text-[#fbbf24]">
-                          {evalData ? 'تم التقييم بنجاح' : 'لم يقيّم بعد'}
+                          {evalData ? 'تم تسجيل التسميع' : 'لم يسجل بعد'}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between text-slate-300">
                         <span className="text-[#86efac]">مقرر الغد:</span>
                         <span className="text-white font-bold truncate max-w-[150px]">
-                          {student.aiPlan?.currentDailyAssignment?.newMemorization || 'غير محدد'}
+                          {student.aiPlan?.currentDailyAssignment?.newMemorization || 'مقرر الغد محدد'}
                         </span>
                       </div>
                     </div>
@@ -333,10 +395,10 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
                             </div>
                           ))
                         ) : (
-                          <div
-                            className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#022c22] border border-[#065f46] text-xs"
-                          >
-                            <span className="text-[#86efac]" dir="ltr">{student.phone}</span>
+                          <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#022c22] border border-[#065f46] text-xs">
+                            <span className="text-[#86efac]" dir="ltr">
+                              {student.phone}
+                            </span>
                             <button
                               onClick={() => handleSendWhatsApp(student.phone, msg)}
                               className="px-3.5 py-1.5 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-[#064e3b] font-black text-[11px] flex items-center gap-1 cursor-pointer shadow-sm"
@@ -355,12 +417,12 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
                     <div className="flex items-center justify-between border-b border-[#065f46] pb-2">
                       <span className="text-xs font-bold text-[#fbbf24] flex items-center gap-1.5">
                         <MessageCircle className="w-3.5 h-3.5" />
-                        <span>نص الرسالة المصاغة بالذكاء الاصطناعي</span>
+                        <span>نص الرسالة المعتمدة بالتفاصيل</span>
                       </span>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => generateMessageForStudent(student)}
-                          title="إعادة الصياغة بالذكاء الاصطناعي"
+                          onClick={() => handleRefreshStudentMessage(student)}
+                          title="تحديث الرسالة من بيانات المعلم"
                           className="p-1.5 rounded-xl text-[#86efac] hover:text-[#fbbf24] hover:bg-[#064e3b] cursor-pointer transition-colors"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
@@ -396,7 +458,7 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
                     </div>
 
                     {/* Message Preview */}
-                    <div className="bg-[#064e3b]/40 rounded-2xl p-4 text-xs text-[#f0f9f6] whitespace-pre-line leading-relaxed font-sans border border-[#065f46] max-h-56 overflow-y-auto">
+                    <div className="bg-[#064e3b]/40 rounded-2xl p-4 text-xs text-[#f0f9f6] whitespace-pre-line leading-relaxed font-sans border border-[#065f46] max-h-60 overflow-y-auto">
                       {msg}
                     </div>
 
@@ -428,7 +490,7 @@ export const ParentsWhatsAppTab: React.FC<ParentsWhatsAppTabProps> = ({
               تعديل نص رسالة الواتساب
             </h3>
             <textarea
-              rows={8}
+              rows={9}
               value={editingText}
               onChange={e => setEditingText(e.target.value)}
               className="w-full bg-[#022c22] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl p-3.5 text-xs text-[#f0f9f6] outline-none resize-none"

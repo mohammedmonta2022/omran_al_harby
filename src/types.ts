@@ -12,18 +12,35 @@ export interface UserAccount {
 
 export type StudentLevel = 'ضعيف' | 'متوسط' | 'قوي';
 
+export interface QuranRecitationItem {
+  id: string;
+  type: string; // e.g. "حفظ جديد" | "مراجعة صغرى" | "مراجعة كبرى" | "مراجعة تراكمية" | "تثبيت مصحف" | "اختبار مرحلي" | "سورة مخصصة"
+  surahNumber: number; // Start surah number (1-114)
+  surahName: string;   // Start surah name
+  fromAyah: number;    // Start ayah
+  toSurahNumber?: number; // End surah number (1-114) - if reciting across multiple surahs
+  toSurahName?: string;   // End surah name
+  toAyah: number;      // End ayah
+  isFullSurah?: boolean;
+  notes?: string;
+}
+
 export interface DailyAssignment {
-  newMemorization: string; // الحفظ الجديد المقرر اليوم
-  review: string; // ورد المراجعة المقرر اليوم
+  newMemorization: string; // الحفظ الجديد المقرر
+  review: string; // ورد المراجعة المقرر
   suggestedSheikh: string; // الشيخ المقترح للاستماع
-  tajweedFocus: string; // تركيز التجويد
-  dailyNote: string; // نصيحة ذكية للطالب
+  tajweedFocus?: string; // تركيز التجويد
+  dailyNote: string; // توجيه المعلم المنزلي
+  // Detailed items
+  newItem?: QuranRecitationItem;
+  reviewItem?: QuranRecitationItem;
+  reviewItems?: QuranRecitationItem[];
 }
 
 export interface StudentAIPlan {
   roadmapSummary: string;
   currentDailyAssignment: DailyAssignment;
-  difficultyAdjustment: string; // e.g. "تم تسهيل الورد نظراً لصعوبة السورة" or "تم تسريع الوتيرة لتميز الطالب"
+  difficultyAdjustment: string;
   estimatedDaysToFinishJuz: number;
   lastUpdated: string;
 }
@@ -32,15 +49,15 @@ export interface Student {
   id: string;
   name: string;
   password: string;
-  phone: string; // رقم هاتف الطالب
+  phone: string;
   age: number;
   parentName: string;
-  parentPhones: string[]; // أرقام أولياء الأمور (الأب، الأم، الأخ، إلخ)
+  parentPhones: string[];
   currentSurah: number; // 1 - 114
   currentSurahName: string;
   currentAyah: number;
-  dailyNewTarget: string; // كم يقدر يحفظ باليوم (مثلاً: نصف وجه، وجه كامل، 5 آيات، سورة كاملة)
-  dailyReviewTarget: string; // كم يقدر يراجع (مثلاً: وجه واحد، نصف جزء، ربع حزب)
+  dailyNewTarget: string;
+  dailyReviewTarget: string;
   level: StudentLevel;
   aiPlan?: StudentAIPlan;
   notes?: string;
@@ -64,8 +81,8 @@ export interface EvaluationCriteria {
   id: string;
   name: string; // e.g. "حفظ", "مراجعة", "تجويد", "أخلاق وسلوك"
   type: CriteriaType;
-  maxScore?: number; // للدرجات مثل 10 أو 7 أو 100
-  options?: string[]; // للخيارات مثل: ممتاز، جيد، ضعيف
+  maxScore?: number;
+  options?: string[];
   isDefault?: boolean;
 }
 
@@ -73,11 +90,20 @@ export interface StudentEvaluation {
   id: string;
   date: string; // YYYY-MM-DD
   studentId: string;
-  criteriaValues: Record<string, any>; // criteriaId -> value (e.g. score, stars, option, text)
+  criteriaValues: Record<string, any>;
   recitationDetails: {
-    newMemorizationAchieved: string; // ماذا أتم الطالب من الحفظ الجديد
-    reviewAchieved: string; // ماذا أتم من المراجعة
-    teacherNotes: string; // ملاحظات المعلم
+    // Today's recitation (ما تم تسميعه اليوم)
+    newMemorizationAchieved: string;
+    reviewAchieved: string;
+    teacherNotes: string;
+    todayNewItem?: QuranRecitationItem;
+    todayReviewItems?: QuranRecitationItem[];
+    // Tomorrow's required assignment (مقرر الغد الذي حدده المعلم)
+    tomorrowNewItem?: QuranRecitationItem;
+    tomorrowReviewItem?: QuranRecitationItem;
+    tomorrowReviewItems?: QuranRecitationItem[];
+    tomorrowSuggestedSheikh?: string;
+    tomorrowDailyNote?: string;
   };
   aiFeedback?: {
     studentProgressStatus: 'متقدم' | 'منتظم' | 'متأخر' | 'يحتاج مساعدة';

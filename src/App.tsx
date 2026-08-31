@@ -60,8 +60,9 @@ export function App() {
     return null;
   });
 
-  // Check URL portal query param for direct parent portal link (?portal=std-1)
+  // Check URL portal query param for direct parent portal link (?portal=std-1 or ?id=std-1)
   const [portalStudentId, setPortalStudentId] = useState<string | null>(null);
+  const [directPortalStudent, setDirectPortalStudent] = useState<Student | null>(null);
 
   // Active Tab for Admin
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -80,15 +81,24 @@ export function App() {
   // Parse URL on initial load and handle hash / search changes
   useEffect(() => {
     const parsePortalParam = () => {
-      // Check search params ?portal=...
+      // Check search params ?portal=... or ?id=... or ?student=...
       const urlParams = new URLSearchParams(window.location.search);
-      let portalId = urlParams.get('portal');
+      let portalId =
+        urlParams.get('portal') ||
+        urlParams.get('id') ||
+        urlParams.get('student') ||
+        urlParams.get('studentId');
 
-      // Check hash #portal=... or #/portal/...
+      // Check hash #portal=... or #id=...
       if (!portalId && window.location.hash) {
         const hash = window.location.hash.replace(/^#\/?/, '');
         const hashParams = new URLSearchParams(hash);
-        portalId = hashParams.get('portal') || (hash.startsWith('portal=') ? hash.split('portal=')[1] : null);
+        portalId =
+          hashParams.get('portal') ||
+          hashParams.get('id') ||
+          hashParams.get('student') ||
+          (hash.startsWith('portal=') ? hash.split('portal=')[1] : null) ||
+          (hash.startsWith('id=') ? hash.split('id=')[1] : null);
       }
 
       if (portalId) {
@@ -104,6 +114,39 @@ export function App() {
       window.removeEventListener('hashchange', parsePortalParam);
     };
   }, []);
+
+  // Dedicated effect to resolve portal student directly from storage/firestore if needed
+  useEffect(() => {
+    if (!portalStudentId) {
+      setDirectPortalStudent(null);
+      return;
+    }
+
+    const resolvePortalStudent = async () => {
+      const clean = decodeURIComponent(portalStudentId).trim();
+      const match = students.find(
+        s =>
+          s.id === clean ||
+          s.id.toLowerCase() === clean.toLowerCase() ||
+          s.name.trim() === clean ||
+          s.name.replace(/\s+/g, '') === clean.replace(/\s+/g, '') ||
+          s.phone.replace(/\D/g, '') === clean.replace(/\D/g, '') ||
+          (s.parentPhones && s.parentPhones.some(p => p.replace(/\D/g, '') === clean.replace(/\D/g, '')))
+      );
+      if (match) {
+        setDirectPortalStudent(match);
+        return;
+      }
+
+      const fetched = await OmranDataService.findStudentByIdOrQuery(portalStudentId);
+      if (fetched) {
+        setDirectPortalStudent(fetched);
+        setStudents(prev => (prev.some(s => s.id === fetched.id) ? prev : [...prev, fetched]));
+      }
+    };
+
+    resolvePortalStudent();
+  }, [portalStudentId, students]);
 
   // Load all data from Firestore / LocalCache
   const loadAllData = async () => {
@@ -337,12 +380,15 @@ export function App() {
 
   // If URL contains portal query param or logged in as student:
   const activePortalStudent = portalStudentId
-    ? students.find(
+    ? directPortalStudent ||
+      students.find(
         s =>
           s.id === portalStudentId ||
           s.id.toLowerCase() === portalStudentId.toLowerCase() ||
           s.name.trim() === portalStudentId.trim() ||
-          s.name.replace(/\s+/g, '') === portalStudentId.replace(/\s+/g, '')
+          s.name.replace(/\s+/g, '') === portalStudentId.replace(/\s+/g, '') ||
+          s.phone.replace(/\D/g, '') === portalStudentId.replace(/\D/g, '') ||
+          (s.parentPhones && s.parentPhones.some(p => p.replace(/\D/g, '') === portalStudentId.replace(/\D/g, '')))
       )
     : currentUser?.role === 'student'
     ? students.find(s => s.id === currentUser.studentId || s.name === currentUser.username)
