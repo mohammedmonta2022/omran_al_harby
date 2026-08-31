@@ -1,0 +1,6 @@
+{
+  "name": "منصة عمران لتحفيظ القرآن الكريم",
+  "description": "منصة عُمْرَان الذكية لإدارة حلقات تحفيظ القرآن الكريم ومتابعة التسميع والحضور والتقييمات وخطط الذكاء الاصطناعي والتواصل مع أولياء الأمور عبر الواتساب",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

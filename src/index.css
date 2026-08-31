@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #022c22;
+    color: #f0f9f6;
+  }
+  
+  .font-quran {
+    font-family: 'Amiri', serif;
+  }
+  
+  .font-heading {
+    font-family: 'Tajawal', 'Cairo', sans-serif;
+  }
+}
+
+/* Artistic Flair Geometric Matrix & Islamic Atmosphere */
+.artistic-pattern {
+  background-color: #022c22;
+  background-image: radial-gradient(circle at 2px 2px, rgba(251, 191, 36, 0.06) 1px, transparent 0);
+  background-size: 40px 40px;
+}
+
+.islamic-glow {
+  box-shadow: 0 0 50px -12px rgba(6, 95, 70, 0.4);
+}
+
+.gold-glow {
+  box-shadow: 0 0 30px -5px rgba(251, 191, 36, 0.3);
+}
+
+.gold-glow-lg {
+  box-shadow: 0 20px 50px rgba(217, 119, 6, 0.25);
+}
+
+/* Custom Scrollbar in Emerald & Gold Theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(2, 44, 34, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(251, 191, 36, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(251, 191, 36, 0.6);
+}

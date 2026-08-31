@@ -1,0 +1,132 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "بيانات طالب حلقة القرآن الكريم ومستوى حفظه",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "password": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "age": { "type": "number" },
+        "parentName": { "type": "string", "maxLength": 150 },
+        "parentPhones": { "type": "array" },
+        "currentSurah": { "type": "number" },
+        "currentSurahName": { "type": "string", "maxLength": 50 },
+        "currentAyah": { "type": "number" },
+        "dailyNewTarget": { "type": "string", "maxLength": 100 },
+        "dailyReviewTarget": { "type": "string", "maxLength": 100 },
+        "level": { "type": "string", "enum": ["ضعيف", "متوسط", "قوي"] },
+        "aiPlan": { "type": "object" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "سجل حضور وغياب يومي لطالب الحلقة",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "maxLength": 150 },
+        "date": { "type": "string", "maxLength": 30 },
+        "status": { "type": "string", "enum": ["حاضر", "غائب", "متأخر", "معتذر"] },
+        "delayMinutes": { "type": "number" },
+        "note": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "studentId", "date", "status"]
+    },
+    "StudentEvaluation": {
+      "title": "StudentEvaluation",
+      "description": "تقييم أداء وتسميع الطالب اليومي",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "maxLength": 150 },
+        "date": { "type": "string", "maxLength": 30 },
+        "criteriaValues": { "type": "object" },
+        "totalScore": { "type": "number" },
+        "recitationDetails": { "type": "object" },
+        "aiFeedback": { "type": "object" },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "studentId", "date"]
+    },
+    "EvaluationCriteria": {
+      "title": "EvaluationCriteria",
+      "description": "بند تقييم مخصص في الحلقة",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["score", "stars", "options"] },
+        "maxScore": { "type": "number" },
+        "options": { "type": "array" },
+        "isDefault": { "type": "boolean" }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "إعدادات منصة حلقة القرآن الكريم",
+      "type": "object",
+      "properties": {
+        "allowStudentRegistration": { "type": "boolean" },
+        "workDaysPerWeek": { "type": "number" },
+        "workDaysNames": { "type": "array" },
+        "halaqahName": { "type": "string", "maxLength": 150 },
+        "teacherName": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["halaqahName", "teacherName"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "رسالة في محادثة مستشار عمران الذكي",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "sender": { "type": "string", "enum": ["user", "ai"] },
+        "text": { "type": "string", "maxLength": 5000 },
+        "timestamp": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "sender", "text"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "مجموعة طلاب الحلقة وسجلاتهم"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "AttendanceRecord",
+      "description": "سجلات الحضور والغياب اليومية"
+    },
+    "/evaluations/{evaluationId}": {
+      "schema": "StudentEvaluation",
+      "description": "سجلات التقييمات والتسميع اليومي للطلاب"
+    },
+    "/criteria/{criteriaId}": {
+      "schema": "EvaluationCriteria",
+      "description": "معايير وبنود التقييم المعتمدة للحلقة"
+    },
+    "/settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "الإعدادات العامة للحلقة"
+    },
+    "/chats/{chatId}": {
+      "schema": "ChatMessage",
+      "description": "سجل رسائل مستشار عمران القرآني"
+    },
+    "/test/{testId}": {
+      "schema": {
+        "$ref": "#/entities/Student"
+      },
+      "description": "مستند فحص اتصال قاعدة البيانات"
+    }
+  }
+}

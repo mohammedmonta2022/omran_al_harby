@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Test connection document for initial handshake
+    match /test/{testId} {
+      allow read, write: if isValidId(testId);
+    }
+
+    // Students collection
+    match /students/{studentId} {
+      allow read: if isValidId(studentId);
+      allow create, update: if isValidId(studentId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow delete: if isValidId(studentId);
+    }
+
+    // Attendance records
+    match /attendance/{attendanceId} {
+      allow read: if isValidId(attendanceId);
+      allow create, update: if isValidId(attendanceId)
+        && request.resource.data.studentId is string
+        && request.resource.data.status in ['حاضر', 'غائب', 'متأخر', 'معتذر'];
+      allow delete: if isValidId(attendanceId);
+    }
+
+    // Evaluations
+    match /evaluations/{evaluationId} {
+      allow read: if isValidId(evaluationId);
+      allow create, update: if isValidId(evaluationId)
+        && request.resource.data.studentId is string;
+      allow delete: if isValidId(evaluationId);
+    }
+
+    // Criteria
+    match /criteria/{criteriaId} {
+      allow read: if isValidId(criteriaId);
+      allow create, update: if isValidId(criteriaId)
+        && request.resource.data.name is string;
+      allow delete: if isValidId(criteriaId);
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if isValidId(settingId);
+      allow write: if isValidId(settingId);
+    }
+
+    // Chats with Quran AI Coach
+    match /chats/{chatId} {
+      allow read: if isValidId(chatId);
+      allow create, update: if isValidId(chatId)
+        && request.resource.data.text is string;
+      allow delete: if isValidId(chatId);
+    }
+  }
+}
