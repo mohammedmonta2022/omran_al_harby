@@ -23,6 +23,7 @@ import {
   AppSettings,
   ChatMessage,
   UserAccount,
+  TeacherAccount,
   FullBackupData
 } from '../types';
 
@@ -114,9 +115,23 @@ export const DEFAULT_SETTINGS: AppSettings = {
   allowStudentRegistration: true,
   workDaysPerWeek: 5,
   workDaysNames: ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
-  halaqahName: 'حلقة الإمام الشاطبي لتحفيظ القرآن الكريم',
+  halaqahName: 'حلقات الصحابي الزبير بن العوام رضي الله عنه',
   teacherName: 'الشيخ محمد منتصر'
 };
+
+// Initial Registered Teachers (Default Teacher Accounts)
+export const INITIAL_TEACHERS: TeacherAccount[] = [
+  {
+    id: 'teacher-1',
+    name: 'الشيخ محمد منتصر',
+    username: 'محمد منتصر',
+    password: '123',
+    phone: '0500000000',
+    title: 'المشرف الأساسي والمعلم الأول',
+    isPrimary: true,
+    createdAt: new Date().toISOString()
+  }
+];
 
 // Initial Seed Students for demonstration
 export const INITIAL_STUDENTS: Student[] = [
@@ -219,7 +234,8 @@ const LS_KEYS = {
   EVALUATIONS: 'omran_evaluations_data',
   CRITERIA: 'omran_criteria_data',
   SETTINGS: 'omran_settings_data',
-  CHATS: 'omran_chats_data'
+  CHATS: 'omran_chats_data',
+  TEACHERS: 'omran_teachers_data'
 };
 
 export const getLocalData = <T>(key: string, fallback: T): T => {
@@ -277,13 +293,93 @@ export class OmranDataService {
         }
       }
 
+      // Teachers collection seeding
+      const teachSnap = await getDocs(collection(db, 'teachers'));
+      if (teachSnap.empty) {
+        const rawTeach = localStorage.getItem(LS_KEYS.TEACHERS);
+        if (rawTeach === null) {
+          for (const t of INITIAL_TEACHERS) {
+            await setDoc(doc(db, 'teachers', t.id), t);
+          }
+          setLocalData(LS_KEYS.TEACHERS, INITIAL_TEACHERS);
+        }
+      }
+
       const setSnap = await getDoc(doc(db, 'settings', 'main'));
       if (!setSnap.exists()) {
         await setDoc(doc(db, 'settings', 'main'), DEFAULT_SETTINGS);
         setLocalData(LS_KEYS.SETTINGS, DEFAULT_SETTINGS);
+      } else {
+        const currentSet = setSnap.data() as AppSettings;
+        if (!currentSet.halaqahName || currentSet.halaqahName.includes('الشاطبي')) {
+          const updatedSet: AppSettings = {
+            ...currentSet,
+            halaqahName: 'حلقات الصحابي الزبير بن العوام رضي الله عنه'
+          };
+          await setDoc(doc(db, 'settings', 'main'), updatedSet);
+          setLocalData(LS_KEYS.SETTINGS, updatedSet);
+        }
       }
     } catch (e) {
       console.warn('Seeding initial data error:', e);
+    }
+  }
+
+  // Load Teachers (Multi-teacher shared halaqah)
+  static async loadTeachers(): Promise<TeacherAccount[]> {
+    try {
+      const snap = await getDocs(collection(db, 'teachers'));
+      if (!snap.empty) {
+        const list: TeacherAccount[] = [];
+        snap.forEach(d => list.push(d.data() as TeacherAccount));
+        setLocalData(LS_KEYS.TEACHERS, list);
+        return list;
+      }
+    } catch (e) {
+      console.warn('Firestore loadTeachers error, fallback to local:', e);
+    }
+    const raw = localStorage.getItem(LS_KEYS.TEACHERS);
+    if (raw === null) {
+      setLocalData(LS_KEYS.TEACHERS, INITIAL_TEACHERS);
+      return INITIAL_TEACHERS;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return INITIAL_TEACHERS;
+    }
+  }
+
+  // Save Teacher
+  static async saveTeacher(teacher: TeacherAccount): Promise<void> {
+    const raw = localStorage.getItem(LS_KEYS.TEACHERS);
+    let localList: TeacherAccount[] = raw ? JSON.parse(raw) : [...INITIAL_TEACHERS];
+    const idx = localList.findIndex(t => t.id === teacher.id);
+    if (idx >= 0) {
+      localList[idx] = teacher;
+    } else {
+      localList.push(teacher);
+    }
+    setLocalData(LS_KEYS.TEACHERS, localList);
+
+    try {
+      await setDoc(doc(db, 'teachers', teacher.id), teacher);
+    } catch (e) {
+      console.warn('Firestore saveTeacher fallback to local:', e);
+    }
+  }
+
+  // Delete Teacher
+  static async deleteTeacher(teacherId: string): Promise<void> {
+    const raw = localStorage.getItem(LS_KEYS.TEACHERS);
+    let localList: TeacherAccount[] = raw ? JSON.parse(raw) : [...INITIAL_TEACHERS];
+    const updated = localList.filter(t => t.id !== teacherId);
+    setLocalData(LS_KEYS.TEACHERS, updated);
+
+    try {
+      await deleteDoc(doc(db, 'teachers', teacherId));
+    } catch (e) {
+      console.warn('Firestore deleteTeacher fallback to local:', e);
     }
   }
 
@@ -593,20 +689,120 @@ export class OmranDataService {
     return null;
   }
 
+  // Real-time Firestore Subscriptions for instant multi-device / multi-teacher sync
+  static subscribeStudents(callback: (students: Student[]) => void): () => void {
+    try {
+      return onSnapshot(collection(db, 'students'), snap => {
+        const list: Student[] = [];
+        snap.forEach(d => list.push(d.data() as Student));
+        if (list.length > 0) {
+          setLocalData(LS_KEYS.STUDENTS, list);
+          callback(list);
+        }
+      }, err => {
+        console.warn('Realtime students listener notice:', err);
+      });
+    } catch (e) {
+      console.warn('Failed to attach students realtime listener:', e);
+      return () => {};
+    }
+  }
+
+  static subscribeAttendance(callback: (attendance: AttendanceRecord[]) => void): () => void {
+    try {
+      return onSnapshot(collection(db, 'attendance'), snap => {
+        const list: AttendanceRecord[] = [];
+        snap.forEach(d => list.push(d.data() as AttendanceRecord));
+        setLocalData(LS_KEYS.ATTENDANCE, list);
+        callback(list);
+      }, err => {
+        console.warn('Realtime attendance listener notice:', err);
+      });
+    } catch (e) {
+      return () => {};
+    }
+  }
+
+  static subscribeEvaluations(callback: (evaluations: StudentEvaluation[]) => void): () => void {
+    try {
+      return onSnapshot(collection(db, 'evaluations'), snap => {
+        const list: StudentEvaluation[] = [];
+        snap.forEach(d => list.push(d.data() as StudentEvaluation));
+        setLocalData(LS_KEYS.EVALUATIONS, list);
+        callback(list);
+      }, err => {
+        console.warn('Realtime evaluations listener notice:', err);
+      });
+    } catch (e) {
+      return () => {};
+    }
+  }
+
+  static subscribeCriteria(callback: (criteria: EvaluationCriteria[]) => void): () => void {
+    try {
+      return onSnapshot(collection(db, 'criteria'), snap => {
+        const list: EvaluationCriteria[] = [];
+        snap.forEach(d => list.push(d.data() as EvaluationCriteria));
+        if (list.length > 0) {
+          setLocalData(LS_KEYS.CRITERIA, list);
+          callback(list);
+        }
+      }, err => {
+        console.warn('Realtime criteria listener notice:', err);
+      });
+    } catch (e) {
+      return () => {};
+    }
+  }
+
+  static subscribeSettings(callback: (settings: AppSettings) => void): () => void {
+    try {
+      return onSnapshot(doc(db, 'settings', 'main'), snap => {
+        if (snap.exists()) {
+          const data = snap.data() as AppSettings;
+          setLocalData(LS_KEYS.SETTINGS, data);
+          callback(data);
+        }
+      }, err => {
+        console.warn('Realtime settings listener notice:', err);
+      });
+    } catch (e) {
+      return () => {};
+    }
+  }
+
+  static subscribeTeachers(callback: (teachers: TeacherAccount[]) => void): () => void {
+    try {
+      return onSnapshot(collection(db, 'teachers'), snap => {
+        const list: TeacherAccount[] = [];
+        snap.forEach(d => list.push(d.data() as TeacherAccount));
+        if (list.length > 0) {
+          setLocalData(LS_KEYS.TEACHERS, list);
+          callback(list);
+        }
+      }, err => {
+        console.warn('Realtime teachers listener notice:', err);
+      });
+    } catch (e) {
+      return () => {};
+    }
+  }
+
   // Export Full Database (Complete & Lossless)
   static async exportFullBackup(): Promise<FullBackupData> {
-    const [students, attendance, evaluations, evaluationCriteria, settings, chatMessages] =
+    const [students, attendance, evaluations, evaluationCriteria, settings, chatMessages, teachers] =
       await Promise.all([
         this.loadStudents(),
         this.loadAttendance(),
         this.loadEvaluations(),
         this.loadCriteria(),
         this.loadSettings(),
-        this.loadChats()
+        this.loadChats(),
+        this.loadTeachers()
       ]);
 
     return {
-      version: '1.2.0',
+      version: '1.3.0',
       exportDate: new Date().toISOString(),
       students,
       attendance,
@@ -614,6 +810,7 @@ export class OmranDataService {
       evaluationCriteria,
       settings,
       chatMessages,
+      teachers,
       userAccounts: [
         {
           id: 'admin-1',
@@ -632,6 +829,7 @@ export class OmranDataService {
     attendanceCount: number;
     evaluationsCount: number;
     criteriaCount: number;
+    teachersCount: number;
   }> {
     if (!backup || typeof backup !== 'object') {
       throw new Error('ملف النسخة الاحتياطية غير صالح أو تالف.');
@@ -645,6 +843,9 @@ export class OmranDataService {
       : DEFAULT_CRITERIA;
     const settingsData = backup.settings || DEFAULT_SETTINGS;
     const chatList = Array.isArray(backup.chatMessages) ? backup.chatMessages : [];
+    const teachersList = Array.isArray(backup.teachers) && backup.teachers.length > 0
+      ? backup.teachers
+      : INITIAL_TEACHERS;
 
     // 1. Immediately Save to LocalStorage for zero-delay offline reliability
     setLocalData(LS_KEYS.STUDENTS, studentsList);
@@ -653,6 +854,7 @@ export class OmranDataService {
     setLocalData(LS_KEYS.CRITERIA, criteriaList);
     setLocalData(LS_KEYS.SETTINGS, settingsData);
     setLocalData(LS_KEYS.CHATS, chatList);
+    setLocalData(LS_KEYS.TEACHERS, teachersList);
 
     // 2. Persist to Firestore concurrently
     try {
@@ -670,6 +872,9 @@ export class OmranDataService {
       for (const c of criteriaList) {
         if (c?.id) promises.push(setDoc(doc(db, 'criteria', c.id), c));
       }
+      for (const t of teachersList) {
+        if (t?.id) promises.push(setDoc(doc(db, 'teachers', t.id), t));
+      }
       if (settingsData) {
         promises.push(setDoc(doc(db, 'settings', 'main'), settingsData));
       }
@@ -683,7 +888,8 @@ export class OmranDataService {
       studentsCount: studentsList.length,
       attendanceCount: attendanceList.length,
       evaluationsCount: evaluationsList.length,
-      criteriaCount: criteriaList.length
+      criteriaCount: criteriaList.length,
+      teachersCount: teachersList.length
     };
   }
 }

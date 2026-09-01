@@ -1,5 +1,16 @@
 export type UserRole = 'admin' | 'student';
 
+export interface TeacherAccount {
+  id: string;
+  name: string; // e.g. "الشيخ محمد منتصر", "الشيخ عبد الله بن فهد"
+  username: string; // username used to log in
+  password?: string; // password used to log in
+  phone: string; // teacher's phone number
+  title?: string; // e.g. "المعلم الأساسي", "معلم شريك / ثانٍ", "محفظ ومساعد"
+  isPrimary?: boolean;
+  createdAt: string;
+}
+
 export interface UserAccount {
   id: string;
   username: string;
@@ -140,4 +151,5 @@ export interface FullBackupData {
   settings: AppSettings;
   chatMessages: ChatMessage[];
   userAccounts: UserAccount[];
+  teachers?: TeacherAccount[];
 }

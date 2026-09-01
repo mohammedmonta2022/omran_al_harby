@@ -21,18 +21,21 @@ import {
   EvaluationCriteria,
   AppSettings,
   ChatMessage,
-  UserRole
+  UserRole,
+  TeacherAccount
 } from './types';
 import {
   OmranDataService,
   DEFAULT_CRITERIA,
   DEFAULT_SETTINGS,
-  INITIAL_STUDENTS
+  INITIAL_STUDENTS,
+  INITIAL_TEACHERS
 } from './lib/firebase';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { Navbar } from './components/Navbar';
 import { LoginModal } from './components/LoginModal';
 import { ParentPortalView } from './components/ParentPortalView';
+import { TeacherManagementModal } from './components/TeacherManagementModal';
 import { HomeTab } from './components/tabs/HomeTab';
 import { StudentsTab } from './components/tabs/StudentsTab';
 import { AttendanceTab } from './components/tabs/AttendanceTab';
@@ -48,6 +51,7 @@ export function App() {
     username: string;
     role: UserRole;
     studentId?: string;
+    teacherId?: string;
   } | null>(() => {
     const saved = localStorage.getItem('omran_session');
     if (saved) {
@@ -69,6 +73,10 @@ export function App() {
   const [targetStudentForEval, setTargetStudentForEval] = useState<string | undefined>();
   const [targetStudentForWhatsApp, setTargetStudentForWhatsApp] = useState<string | undefined>();
 
+  // Teachers State & Modal
+  const [teachers, setTeachers] = useState<TeacherAccount[]>(INITIAL_TEACHERS);
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+
   // Main Data States
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -81,7 +89,6 @@ export function App() {
   // Parse URL on initial load and handle hash / search changes
   useEffect(() => {
     const parsePortalParam = () => {
-      // Check search params ?portal=... or ?id=... or ?student=...
       const urlParams = new URLSearchParams(window.location.search);
       let portalId =
         urlParams.get('portal') ||
@@ -89,7 +96,6 @@ export function App() {
         urlParams.get('student') ||
         urlParams.get('studentId');
 
-      // Check hash #portal=... or #id=...
       if (!portalId && window.location.hash) {
         const hash = window.location.hash.replace(/^#\/?/, '');
         const hashParams = new URLSearchParams(hash);
@@ -158,14 +164,16 @@ export function App() {
         loadedEvaluations,
         loadedCriteria,
         loadedSettings,
-        loadedChats
+        loadedChats,
+        loadedTeachers
       ] = await Promise.all([
         OmranDataService.loadStudents(),
         OmranDataService.loadAttendance(),
         OmranDataService.loadEvaluations(),
         OmranDataService.loadCriteria(),
         OmranDataService.loadSettings(),
-        OmranDataService.loadChats()
+        OmranDataService.loadChats(),
+        OmranDataService.loadTeachers()
       ]);
 
       setStudents(loadedStudents);
@@ -174,6 +182,7 @@ export function App() {
       setCriteria(loadedCriteria);
       setSettings(loadedSettings);
       setChatHistory(loadedChats);
+      setTeachers(loadedTeachers);
     } catch (e) {
       console.error('Error loading initial data:', e);
     } finally {
@@ -184,10 +193,39 @@ export function App() {
   useEffect(() => {
     OmranDataService.testConnection();
     loadAllData();
+
+    // Attach Firestore real-time subscriptions for multi-teacher live sync
+    const unsubStudents = OmranDataService.subscribeStudents(newStudents => {
+      setStudents(newStudents);
+    });
+    const unsubAttendance = OmranDataService.subscribeAttendance(newAtt => {
+      setAttendance(newAtt);
+    });
+    const unsubEvaluations = OmranDataService.subscribeEvaluations(newEvals => {
+      setEvaluations(newEvals);
+    });
+    const unsubCriteria = OmranDataService.subscribeCriteria(newCrit => {
+      setCriteria(newCrit);
+    });
+    const unsubSettings = OmranDataService.subscribeSettings(newSet => {
+      setSettings(newSet);
+    });
+    const unsubTeachers = OmranDataService.subscribeTeachers(newTeach => {
+      setTeachers(newTeach);
+    });
+
+    return () => {
+      unsubStudents();
+      unsubAttendance();
+      unsubEvaluations();
+      unsubCriteria();
+      unsubSettings();
+      unsubTeachers();
+    };
   }, []);
 
   // Save session on login
-  const handleLoginSuccess = (user: { username: string; role: UserRole; studentId?: string }) => {
+  const handleLoginSuccess = (user: { username: string; role: UserRole; studentId?: string; teacherId?: string }) => {
     setCurrentUser(user);
     localStorage.setItem('omran_session', JSON.stringify(user));
   };
@@ -197,6 +235,19 @@ export function App() {
     localStorage.removeItem('omran_session');
     setPortalStudentId(null);
     window.history.replaceState({}, '', window.location.pathname);
+  };
+
+  // Multi-Teacher Handlers
+  const handleSaveTeacher = async (teacher: TeacherAccount) => {
+    await OmranDataService.saveTeacher(teacher);
+    const updated = await OmranDataService.loadTeachers();
+    setTeachers(updated);
+  };
+
+  const handleDeleteTeacher = async (teacherId: string) => {
+    await OmranDataService.deleteTeacher(teacherId);
+    const updated = await OmranDataService.loadTeachers();
+    setTeachers(updated);
   };
 
   // 1. Student Registration / Addition
@@ -476,6 +527,7 @@ export function App() {
           onLoginSuccess={handleLoginSuccess}
           onRegisterStudent={handleAddStudent}
           students={students}
+          teachers={teachers}
           settings={settings}
         />
       </div>
@@ -504,6 +556,8 @@ export function App() {
         onLogout={handleLogout}
         settings={settings}
         studentsCount={students.length}
+        teachersCount={teachers.length}
+        onOpenTeacherManagement={() => setIsTeacherModalOpen(true)}
       />
 
       <main className="max-w-7xl mx-auto px-4 lg:px-8 pt-6 relative z-10 space-y-6">
@@ -550,8 +604,11 @@ export function App() {
             attendance={attendance}
             evaluations={evaluations}
             settings={settings}
+            teachers={teachers}
+            currentUserName={currentUser?.username}
             onNavigateTab={handleNavigateTab}
             onSelectStudentForEval={handleSelectStudentForEval}
+            onOpenTeacherManagement={() => setIsTeacherModalOpen(true)}
           />
         )}
 
@@ -626,6 +683,16 @@ export function App() {
           />
         )}
       </main>
+
+      {/* Teacher Accounts Management Modal */}
+      <TeacherManagementModal
+        isOpen={isTeacherModalOpen}
+        onClose={() => setIsTeacherModalOpen(false)}
+        teachers={teachers}
+        settings={settings}
+        onSaveTeacher={handleSaveTeacher}
+        onDeleteTeacher={handleDeleteTeacher}
+      />
     </div>
   );
 }

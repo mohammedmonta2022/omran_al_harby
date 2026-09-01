@@ -54,6 +54,14 @@ service cloud.firestore {
       allow write: if isValidId(settingId);
     }
 
+    // Teachers & Co-teachers collection
+    match /teachers/{teacherId} {
+      allow read: if true;
+      allow create, update: if isValidId(teacherId)
+        && request.resource.data.name is string;
+      allow delete: if isValidId(teacherId);
+    }
+
     // Chats with Quran AI Coach
     match /chats/{chatId} {
       allow read: if true;

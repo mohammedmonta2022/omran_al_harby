@@ -13,17 +13,23 @@ import {
   ArrowLeft,
   CalendarDays,
   Flame,
-  Volume2
+  Volume2,
+  UserPlus,
+  ShieldCheck,
+  RefreshCw
 } from 'lucide-react';
-import { Student, AttendanceRecord, StudentEvaluation, AppSettings } from '../../types';
+import { Student, AttendanceRecord, StudentEvaluation, AppSettings, TeacherAccount } from '../../types';
 
 interface HomeTabProps {
   students: Student[];
   attendance: AttendanceRecord[];
   evaluations: StudentEvaluation[];
   settings: AppSettings;
+  teachers?: TeacherAccount[];
+  currentUserName?: string;
   onNavigateTab: (tab: string) => void;
   onSelectStudentForEval?: (studentId: string) => void;
+  onOpenTeacherManagement?: () => void;
 }
 
 export const HomeTab: React.FC<HomeTabProps> = ({
@@ -31,8 +37,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   attendance,
   evaluations,
   settings,
+  teachers = [],
+  currentUserName,
   onNavigateTab,
-  onSelectStudentForEval
+  onSelectStudentForEval,
+  onOpenTeacherManagement
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -60,6 +69,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const mediumCount = students.filter(s => s.level === 'متوسط').length;
   const weakCount = students.filter(s => s.level === 'ضعيف').length;
 
+  const displayTeacherName = currentUserName || settings.teacherName || 'الشيخ محمد منتصر';
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
@@ -68,13 +79,13 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#fbbf24]/20 text-[#fbbf24] border border-[#fbbf24]/40 text-xs font-bold mb-3 shadow-[0_0_12px_rgba(251,191,36,0.2)]">
               <Sparkles className="w-3.5 h-3.5 text-[#fbbf24]" />
-              <span>لوحة القيادة الذكية والمتابعة الحية</span>
+              <span>لوحة القيادة الذكية والمتابعة المشتركة للحلقة</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold font-heading text-white">
-              مرحباً بك، <span className="text-[#fbbf24]">{settings.teacherName || 'الشيخ محمد منتصر'}</span> 🌿
+              مرحباً بك، <span className="text-[#fbbf24]">{displayTeacherName}</span> 🌿
             </h2>
             <p className="text-[#86efac]/90 text-sm mt-1 max-w-xl">
-              تسميع وحفظ اليوم في {settings.halaqahName}. يتابع الذكاء الاصطناعي تقدم كل طالب ويضبط خططه اليومية تلقائياً.
+              تسميع وحفظ اليوم في {settings.halaqahName}. المنظومة مرتبطة سحابياً بحيث يتشارك جميع معلمي الحلقة نفس الطلاب والتقييمات فورياً ولحظياً.
             </p>
           </div>
 
@@ -93,6 +104,15 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               <BookOpen className="w-4 h-4 text-[#fbbf24]" />
               <span>تقييم التسميع</span>
             </button>
+            {onOpenTeacherManagement && (
+              <button
+                onClick={onOpenTeacherManagement}
+                className="px-4 py-2.5 rounded-2xl bg-[#022c22] hover:bg-[#065f46] text-[#86efac] hover:text-[#fbbf24] border border-[#065f46] hover:border-[#fbbf24]/40 font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <Users className="w-4 h-4 text-[#fbbf24]" />
+                <span>إدارة المعلمين ({teachers.length})</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -290,6 +310,21 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </h3>
 
             <div className="space-y-2.5">
+              {onOpenTeacherManagement && (
+                <button
+                  onClick={onOpenTeacherManagement}
+                  className="w-full p-3 rounded-2xl bg-[#022c22]/70 hover:bg-[#022c22] border border-[#065f46] hover:border-[#fbbf24]/40 flex items-center justify-between text-right transition-all text-xs font-bold text-[#fbbf24] cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[#fbbf24]/20 text-[#fbbf24] flex items-center justify-center border border-[#fbbf24]/30">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <span>إدارة المعلمين والمعاونين ({teachers.length})</span>
+                  </div>
+                  <ArrowLeft className="w-3.5 h-3.5 text-[#fbbf24]" />
+                </button>
+              )}
+
               <button
                 onClick={() => onNavigateTab('students')}
                 className="w-full p-3 rounded-2xl bg-[#022c22]/70 hover:bg-[#022c22] border border-[#065f46] flex items-center justify-between text-right transition-all text-xs font-bold text-[#f0f9f6] cursor-pointer"
