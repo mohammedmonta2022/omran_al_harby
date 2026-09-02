@@ -36,6 +36,7 @@ import { Navbar } from './components/Navbar';
 import { LoginModal } from './components/LoginModal';
 import { ParentPortalView } from './components/ParentPortalView';
 import { TeacherManagementModal } from './components/TeacherManagementModal';
+import { getSurahInfo } from './data/quranData';
 import { HomeTab } from './components/tabs/HomeTab';
 import { StudentsTab } from './components/tabs/StudentsTab';
 import { AttendanceTab } from './components/tabs/AttendanceTab';
@@ -356,11 +357,33 @@ export function App() {
     setAttendance(list);
   };
 
-  // 7. Save Evaluation
+  // 7. Save Evaluation & dynamically update student's current position (where student reached)
   const handleSaveEvaluation = async (evaluation: StudentEvaluation) => {
     await OmranDataService.saveEvaluation(evaluation);
     const list = await OmranDataService.loadEvaluations();
     setEvaluations(list);
+
+    // If today recitation contains a new memorization portion, update the student's currentSurah and currentAyah
+    const todayNew = evaluation.recitationDetails?.todayNewItem;
+    if (todayNew && todayNew.surahNumber) {
+      const targetStudent = students.find(s => s.id === evaluation.studentId);
+      if (targetStudent) {
+        const finalSurahNum = todayNew.toSurahNumber || todayNew.surahNumber;
+        const finalSurahName = todayNew.toSurahName || todayNew.surahName || getSurahInfo(finalSurahNum).name;
+        const finalAyah = todayNew.toAyah || todayNew.fromAyah || 1;
+
+        const updatedStudent: Student = {
+          ...targetStudent,
+          currentSurah: finalSurahNum,
+          currentSurahName: finalSurahName,
+          currentAyah: finalAyah
+        };
+
+        await OmranDataService.saveStudent(updatedStudent);
+        const updatedStudentsList = await OmranDataService.loadStudents();
+        setStudents(updatedStudentsList);
+      }
+    }
   };
 
   // 8. Update Criteria
@@ -375,13 +398,20 @@ export function App() {
     setCriteria(list);
   };
 
-  // 9. Update Student AI Plan Assignment
-  const handleUpdateStudentAIPlan = async (studentId: string, newAssignment: any) => {
+  // 9. Update Student AI Plan Assignment & Position
+  const handleUpdateStudentAIPlan = async (
+    studentId: string,
+    newAssignment: any,
+    updatedPosition?: { surahNumber: number; surahName: string; ayah: number }
+  ) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
 
     const updatedStudent: Student = {
       ...student,
+      currentSurah: updatedPosition?.surahNumber ?? student.currentSurah,
+      currentSurahName: updatedPosition?.surahName ?? student.currentSurahName,
+      currentAyah: updatedPosition?.ayah ?? student.currentAyah,
       aiPlan: {
         roadmapSummary: student.aiPlan?.roadmapSummary || 'خطة الحفظ والمراجعة التراكمية',
         difficultyAdjustment: student.aiPlan?.difficultyAdjustment || 'وتيرة متوازنة',

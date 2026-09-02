@@ -13,6 +13,9 @@ import {
   Volume2,
   Sliders,
   ChevronRight,
+  ChevronLeft,
+  Calendar,
+  History,
   Send,
   X,
   Layers,
@@ -21,7 +24,9 @@ import {
   Compass,
   FileText,
   ArrowLeftRight,
-  CheckCheck
+  Brain,
+  Zap,
+  Info
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -49,7 +54,11 @@ interface EvaluationTabProps {
   onSaveEvaluation: (evaluation: StudentEvaluation) => Promise<void>;
   onSaveCriteria: (criteriaList: EvaluationCriteria[]) => Promise<void>;
   onDeleteCriteria: (id: string) => Promise<void>;
-  onUpdateStudentAIPlan: (studentId: string, newAssignment: any) => Promise<void>;
+  onUpdateStudentAIPlan: (
+    studentId: string,
+    newAssignment: any,
+    updatedPosition?: { surahNumber: number; surahName: string; ayah: number }
+  ) => Promise<void>;
   onNavigateToWhatsApp?: (studentId: string) => void;
 }
 
@@ -67,6 +76,9 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
+  // Selected Date for evaluation view & entry (Default: Today)
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+
   // Active student selection
   const [activeStudentId, setActiveStudentId] = useState<string>(
     selectedStudentId || (students.length > 0 ? students[0].id : '')
@@ -74,9 +86,24 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 
   const activeStudent = students.find(s => s.id === activeStudentId);
 
+  // History Drawer toggle
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState<boolean>(false);
+
+  // Auto-fill notice from yesterday
+  const [autoFilledNotice, setAutoFilledNotice] = useState<string>('');
+
+  // AI 3-Day Diagnostic state
+  const [isGeneratingSmartPlan, setIsGeneratingSmartPlan] = useState<boolean>(false);
+  const [smartAIAnalysis, setSmartAIAnalysis] = useState<{
+    threeDayAnalysis: string;
+    pedagogicalReasoning: string;
+    suggestedSheikh: string;
+    tajweedFocus: string;
+  } | null>(null);
+
   // ----------------------------------------------------
-  // 1. TODAY'S RECITATION STATE (ما سمعه الطالب اليوم)
-  // Supports multi-surah ranges (from Surah A ayah X to Surah B ayah Y)
+  // 1. RECITATION STATE (ما سمعه الطالب)
+  // Supports multi-surah ranges
   // ----------------------------------------------------
   // Today's New Memorization
   const [todayNewSurah, setTodayNewSurah] = useState<number>(78);
@@ -84,7 +111,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
   const [todayNewToSurah, setTodayNewToSurah] = useState<number>(78);
   const [todayNewToAyah, setTodayNewToAyah] = useState<number>(10);
 
-  // Today's Review Items (Teacher can add multiple review portions / multi-surah tests)
+  // Today's Review Items
   const [todayReviews, setTodayReviews] = useState<QuranRecitationItem[]>([
     {
       id: 'rev_1',
@@ -136,12 +163,12 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
   const [newCritMaxScore, setNewCritMaxScore] = useState<number>(10);
   const [newCritOptions, setNewCritOptions] = useState<string>('ممتاز, جيد جدا, جيد, ضعيف');
 
-  // Today attendance status of active student
-  const todayAtt = attendance.find(
-    a => a.date === todayStr && a.studentId === activeStudentId
+  // Attendance status of active student on the selected date
+  const selectedDateAtt = attendance.find(
+    a => a.date === selectedDate && a.studentId === activeStudentId
   );
-  const isAbsent = todayAtt?.status === 'غائب';
-  const isExcused = todayAtt?.status === 'معتذر';
+  const isAbsent = selectedDateAtt?.status === 'غائب';
+  const isExcused = selectedDateAtt?.status === 'معتذر';
 
   // Metadata Helpers
   const startTodaySurahInfo = getSurahInfo(todayNewSurah);
@@ -153,20 +180,27 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
   const startTomRevSurahInfo = getSurahInfo(tomReviewSurah);
   const endTomRevSurahInfo = getSurahInfo(tomReviewToSurah);
 
-  // Initialize or load student evaluation when active student changes
+  // All evaluations for the currently active student (sorted latest first)
+  const studentEvaluationsHistory = evaluations
+    .filter(e => e.studentId === activeStudentId)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Initialize or load student evaluation when active student or selected date changes
   useEffect(() => {
     if (!activeStudent) return;
+    setAutoFilledNotice('');
+    setSmartAIAnalysis(null);
 
-    // Check if an evaluation already exists for today
+    // 1. Check if an evaluation already exists for the selectedDate
     const existing = evaluations.find(
-      e => e.date === todayStr && e.studentId === activeStudent.id
+      e => e.date === selectedDate && e.studentId === activeStudent.id
     );
 
     if (existing) {
       setCriteriaValues(existing.criteriaValues || {});
       setTeacherNotes(existing.recitationDetails?.teacherNotes || '');
 
-      // Load today's new item if stored
+      // Load today's new item
       if (existing.recitationDetails?.todayNewItem) {
         const item = existing.recitationDetails.todayNewItem;
         const sNum = item.surahNumber || 78;
@@ -182,7 +216,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
         setTodayReviews(existing.recitationDetails.todayReviewItems);
       }
 
-      // Load tomorrow's assignment
+      // Load tomorrow's assignment recorded on that day
       if (existing.recitationDetails?.tomorrowNewItem) {
         const tNew = existing.recitationDetails.tomorrowNewItem;
         const sNum = tNew.surahNumber || 78;
@@ -209,58 +243,131 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
         setDailyHomeNote(existing.recitationDetails.tomorrowDailyNote);
       }
     } else {
-      // Default initialization based on student current position
-      const studentSurah = activeStudent.currentSurah || 78;
-      const studentAyah = activeStudent.currentAyah || 1;
-      const surahInfo = getSurahInfo(studentSurah);
-      const totalAyahs = surahInfo.numberOfAyahs;
+      // 2. No evaluation exists for this date yet!
+      // Check if there is a previous evaluation before selectedDate to automatically load yesterday's planned tomorrow targets!
+      const pastEvals = evaluations
+        .filter(e => e.studentId === activeStudent.id && e.date < selectedDate)
+        .sort((a, b) => b.date.localeCompare(a.date));
 
-      const step = activeStudent.level === 'ضعيف' ? 4 : activeStudent.level === 'قوي' ? 12 : 7;
-      const endAyah = Math.min(studentAyah + step - 1, totalAyahs);
+      const latestPastEval = pastEvals[0];
 
-      setTodayNewSurah(studentSurah);
-      setTodayNewFromAyah(studentAyah);
-      setTodayNewToSurah(studentSurah);
-      setTodayNewToAyah(endAyah);
+      if (latestPastEval && latestPastEval.recitationDetails?.tomorrowNewItem) {
+        // AUTOMATIC PLAN LOADING FROM YESTERDAY'S PLAN!
+        const yNew = latestPastEval.recitationDetails.tomorrowNewItem;
+        const sNum = yNew.surahNumber || 78;
+        const toSNum = yNew.toSurahNumber || sNum;
+        const fAyah = yNew.fromAyah || 1;
+        const tAyah = yNew.toAyah || 10;
 
-      // Default review
-      const revSurah = studentSurah < 114 ? studentSurah + 1 : 113;
-      const revInfo = getSurahInfo(revSurah);
-      setTodayReviews([
-        {
-          id: `rev_${Date.now()}`,
-          type: REVIEW_TYPES[0],
-          surahNumber: revSurah,
-          surahName: revInfo.name,
-          fromAyah: 1,
-          toSurahNumber: revSurah,
-          toSurahName: revInfo.name,
-          toAyah: revInfo.numberOfAyahs,
-          isFullSurah: true
+        setTodayNewSurah(sNum);
+        setTodayNewFromAyah(fAyah);
+        setTodayNewToSurah(toSNum);
+        setTodayNewToAyah(tAyah);
+
+        const loadedPortionText = formatQuranPortion(
+          getSurahInfo(sNum).name,
+          fAyah,
+          tAyah,
+          getSurahInfo(sNum).numberOfAyahs,
+          'حفظ جديد',
+          getSurahInfo(toSNum).name,
+          getSurahInfo(toSNum).numberOfAyahs
+        );
+
+        setAutoFilledNotice(`تم ضبط المقرر تلقائياً بناءً على خطة التسميع المعتمدة في يوم (${latestPastEval.date}): ${loadedPortionText}`);
+
+        // Also load review item if available
+        if (latestPastEval.recitationDetails?.tomorrowReviewItem) {
+          const yRev = latestPastEval.recitationDetails.tomorrowReviewItem;
+          setTodayReviews([
+            {
+              id: `rev_auto_${Date.now()}`,
+              type: yRev.type || REVIEW_TYPES[0],
+              surahNumber: yRev.surahNumber || 78,
+              surahName: yRev.surahName || getSurahInfo(yRev.surahNumber || 78).name,
+              fromAyah: yRev.fromAyah || 1,
+              toSurahNumber: yRev.toSurahNumber || yRev.surahNumber || 78,
+              toSurahName: yRev.toSurahName || getSurahInfo(yRev.toSurahNumber || yRev.surahNumber || 78).name,
+              toAyah: yRev.toAyah || 10,
+              isFullSurah: yRev.isFullSurah || false
+            }
+          ]);
         }
-      ]);
 
-      // Calculate default tomorrow assignment
-      if (endAyah < totalAyahs) {
-        setTomNewSurah(studentSurah);
-        setTomNewFromAyah(endAyah + 1);
-        setTomNewToSurah(studentSurah);
-        setTomNewToAyah(Math.min(endAyah + step, totalAyahs));
+        // Auto-calculate tomorrow's continuation step
+        const toSurahInfo = getSurahInfo(toSNum);
+        const step = activeStudent.level === 'ضعيف' ? 4 : activeStudent.level === 'قوي' ? 12 : 7;
+        if (tAyah < toSurahInfo.numberOfAyahs) {
+          setTomNewSurah(toSNum);
+          setTomNewFromAyah(tAyah + 1);
+          setTomNewToSurah(toSNum);
+          setTomNewToAyah(Math.min(tAyah + step, toSurahInfo.numberOfAyahs));
+        } else {
+          const nextSurahNum = toSNum < 114 ? toSNum + 1 : 1;
+          const nextInfo = getSurahInfo(nextSurahNum);
+          setTomNewSurah(nextSurahNum);
+          setTomNewFromAyah(1);
+          setTomNewToSurah(nextSurahNum);
+          setTomNewToAyah(Math.min(step, nextInfo.numberOfAyahs));
+        }
+
+        setTomReviewType(REVIEW_TYPES[0]);
+        setTomReviewSurah(sNum);
+        setTomReviewFromAyah(fAyah);
+        setTomReviewToSurah(toSNum);
+        setTomReviewToAyah(tAyah);
       } else {
-        // Next surah in order
-        const nextSurahNum = Math.max(1, studentSurah - 1);
-        const nextSurahInfo = getSurahInfo(nextSurahNum);
-        setTomNewSurah(nextSurahNum);
-        setTomNewFromAyah(1);
-        setTomNewToSurah(nextSurahNum);
-        setTomNewToAyah(Math.min(step, nextSurahInfo.numberOfAyahs));
-      }
+        // Fallback default initialization from student profile
+        const studentSurah = activeStudent.currentSurah || 78;
+        const studentAyah = activeStudent.currentAyah || 1;
+        const surahInfo = getSurahInfo(studentSurah);
+        const totalAyahs = surahInfo.numberOfAyahs;
 
-      setTomReviewType(REVIEW_TYPES[0]);
-      setTomReviewSurah(studentSurah);
-      setTomReviewFromAyah(1);
-      setTomReviewToSurah(studentSurah);
-      setTomReviewToAyah(endAyah);
+        const step = activeStudent.level === 'ضعيف' ? 4 : activeStudent.level === 'قوي' ? 12 : 7;
+        const endAyah = Math.min(studentAyah + step - 1, totalAyahs);
+
+        setTodayNewSurah(studentSurah);
+        setTodayNewFromAyah(studentAyah);
+        setTodayNewToSurah(studentSurah);
+        setTodayNewToAyah(endAyah);
+
+        // Default review
+        const revSurah = studentSurah < 114 ? studentSurah + 1 : 113;
+        const revInfo = getSurahInfo(revSurah);
+        setTodayReviews([
+          {
+            id: `rev_${Date.now()}`,
+            type: REVIEW_TYPES[0],
+            surahNumber: revSurah,
+            surahName: revInfo.name,
+            fromAyah: 1,
+            toSurahNumber: revSurah,
+            toSurahName: revInfo.name,
+            toAyah: revInfo.numberOfAyahs,
+            isFullSurah: true
+          }
+        ]);
+
+        if (endAyah < totalAyahs) {
+          setTomNewSurah(studentSurah);
+          setTomNewFromAyah(endAyah + 1);
+          setTomNewToSurah(studentSurah);
+          setTomNewToAyah(Math.min(endAyah + step, totalAyahs));
+        } else {
+          const nextSurahNum = studentSurah < 114 ? studentSurah + 1 : 1;
+          const nextSurahInfo = getSurahInfo(nextSurahNum);
+          setTomNewSurah(nextSurahNum);
+          setTomNewFromAyah(1);
+          setTomNewToSurah(nextSurahNum);
+          setTomNewToAyah(Math.min(step, nextSurahInfo.numberOfAyahs));
+        }
+
+        setTomReviewType(REVIEW_TYPES[0]);
+        setTomReviewSurah(studentSurah);
+        setTomReviewFromAyah(1);
+        setTomReviewToSurah(studentSurah);
+        setTomReviewToAyah(endAyah);
+      }
 
       // Initialize criteria defaults
       const defaults: Record<string, any> = {};
@@ -273,14 +380,32 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
       setCriteriaValues(defaults);
       setTeacherNotes('أداء طيب ومتقن ما شاء الله، نسأل الله له التوفيق والرفعة.');
     }
-  }, [activeStudentId, evaluations, criteria]);
+  }, [activeStudentId, selectedDate, evaluations, criteria]);
+
+  // Date Navigation Helpers
+  const handleDateShift = (days: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + days);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
+  const getYesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  };
+
+  const getDayBeforeYesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 2);
+    return d.toISOString().split('T')[0];
+  };
 
   // Handlers for Today's New
   const handleTodayStartSurahChange = (surahNum: number) => {
     setTodayNewSurah(surahNum);
     const info = getSurahInfo(surahNum);
     setTodayNewFromAyah(1);
-    // If toSurah was previous fromSurah or same, update toSurah as well
     if (todayNewToSurah === todayNewSurah) {
       setTodayNewToSurah(surahNum);
       setTodayNewToAyah(Math.min(10, info.numberOfAyahs));
@@ -378,7 +503,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
     setTodayReviews(prev => prev.filter(item => item.id !== id));
   };
 
-  // Quick Auto-Calculate Tomorrow Assignment from Today's finished point
+  // Quick Auto-Calculate Tomorrow Assignment from Today's finished point (Rule-based)
   const handleAutoCalcTomorrow = () => {
     const curEndSurahInfo = getSurahInfo(todayNewToSurah);
     const totalAyahs = curEndSurahInfo.numberOfAyahs;
@@ -390,8 +515,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
       setTomNewToSurah(todayNewToSurah);
       setTomNewToAyah(Math.min(todayNewToAyah + step, totalAyahs));
     } else {
-      // Finished surah, move to next surah in sequence
-      const nextSurahNum = Math.max(1, todayNewToSurah - 1);
+      const nextSurahNum = todayNewToSurah < 114 ? todayNewToSurah + 1 : 1;
       const nextInfo = getSurahInfo(nextSurahNum);
       setTomNewSurah(nextSurahNum);
       setTomNewFromAyah(1);
@@ -399,7 +523,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
       setTomNewToAyah(Math.min(step, nextInfo.numberOfAyahs));
     }
 
-    // Set tomorrow review to cover today's recitation range
     setTomReviewType(REVIEW_TYPES[0]);
     setTomReviewSurah(todayNewSurah);
     setTomReviewFromAyah(todayNewFromAyah);
@@ -407,7 +530,86 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
     setTomReviewToAyah(todayNewToAyah);
   };
 
-  // Save complete evaluation and update tomorrow assignment
+  // 4. AI-DRIVEN 3-DAY ANALYSIS & TOMORROW PLAN CALCULATION
+  const handleGenerateSmart3DayPlan = async () => {
+    if (!activeStudent) return;
+    setIsGeneratingSmartPlan(true);
+
+    try {
+      const recentEvals = studentEvaluationsHistory.slice(0, 5);
+      const studentAtt = attendance.filter(a => a.studentId === activeStudent.id);
+
+      const todayRecitation = {
+        todayNewSurah,
+        todayNewFromAyah,
+        todayNewToSurah,
+        todayNewToAyah,
+        criteriaValues,
+        teacherNotes
+      };
+
+      const res = await fetch('/api/gemini/calculate-smart-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student: activeStudent,
+          recentEvaluations: recentEvals,
+          attendanceRecords: studentAtt,
+          todayRecitation
+        })
+      });
+
+      const data = await res.json();
+      if (data.result) {
+        const r = data.result;
+
+        // Auto-set tomorrow new
+        if (r.tomorrowNew) {
+          setTomNewSurah(r.tomorrowNew.surahNumber || 78);
+          setTomNewFromAyah(r.tomorrowNew.fromAyah || 1);
+          setTomNewToSurah(r.tomorrowNew.toSurahNumber || r.tomorrowNew.surahNumber || 78);
+          setTomNewToAyah(r.tomorrowNew.toAyah || 10);
+        }
+
+        // Auto-set tomorrow review
+        if (r.tomorrowReview) {
+          setTomReviewType(r.tomorrowReview.type || REVIEW_TYPES[0]);
+          setTomReviewSurah(r.tomorrowReview.surahNumber || 78);
+          setTomReviewFromAyah(r.tomorrowReview.fromAyah || 1);
+          setTomReviewToSurah(r.tomorrowReview.toSurahNumber || r.tomorrowReview.surahNumber || 78);
+          setTomReviewToAyah(r.tomorrowReview.toAyah || 10);
+        }
+
+        if (r.suggestedSheikh) {
+          setSelectedSheikh(r.suggestedSheikh);
+        }
+        if (r.dailyHomeNote) {
+          setDailyHomeNote(r.dailyHomeNote);
+        }
+
+        setSmartAIAnalysis({
+          threeDayAnalysis: r.threeDayAnalysis,
+          pedagogicalReasoning: r.pedagogicalReasoning,
+          suggestedSheikh: r.suggestedSheikh,
+          tajweedFocus: r.tajweedFocus
+        });
+
+        confetti({
+          particleCount: 40,
+          spread: 50,
+          origin: { y: 0.6 }
+        });
+      }
+    } catch (err) {
+      console.error('AI 3-Day calculation error:', err);
+      // Fallback rule-based
+      handleAutoCalcTomorrow();
+    } finally {
+      setIsGeneratingSmartPlan(false);
+    }
+  };
+
+  // Save complete evaluation and update student's current position permanently
   const handleSaveEvaluationRecord = async () => {
     if (!activeStudent) return;
     setIsSaving(true);
@@ -505,8 +707,8 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
       };
 
       const fullEvaluation: StudentEvaluation = {
-        id: `eval_${todayStr}_${activeStudent.id}`,
-        date: todayStr,
+        id: `eval_${selectedDate}_${activeStudent.id}`,
+        date: selectedDate,
         studentId: activeStudent.id,
         criteriaValues,
         recitationDetails: {
@@ -526,7 +728,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
       // 1. Save evaluation
       await onSaveEvaluation(fullEvaluation);
 
-      // 2. Update student assignment & current position
+      // 2. Update student assignment & current position permanently
       const newDailyAssignment = {
         newMemorization: tomNewFormatted,
         review: tomRevFormatted,
@@ -536,13 +738,18 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
         reviewItem: tomorrowReviewItem
       };
 
-      await onUpdateStudentAIPlan(activeStudent.id, newDailyAssignment);
+      // Update student's current position to the latest surah and ayah reached today!
+      await onUpdateStudentAIPlan(activeStudent.id, newDailyAssignment, {
+        surahNumber: todayNewToSurah,
+        surahName: todayEndSurahInfo.name,
+        ayah: todayNewToAyah
+      });
 
-      setSaveSuccessMsg('تم حفظ التسميع والتقييم وتثبيت مقرر الغد بنجاح!');
+      setSaveSuccessMsg(`تم حفظ التسميع والتقييم ليوم (${selectedDate}) وتحديث موضع الطالب إلى سورة ${todayEndSurahInfo.name} (الآية ${todayNewToAyah}) بنجاح!`);
 
       confetti({
-        particleCount: 50,
-        spread: 65,
+        particleCount: 60,
+        spread: 70,
         origin: { y: 0.7 }
       });
     } catch (e: any) {
@@ -550,7 +757,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
       setSaveSuccessMsg('حدث خطأ أثناء حفظ التقييم.');
     } finally {
       setIsSaving(false);
-      setTimeout(() => setSaveSuccessMsg(''), 4000);
+      setTimeout(() => setSaveSuccessMsg(''), 4500);
     }
   };
 
@@ -617,7 +824,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner & Criteria Management Trigger */}
+      {/* Top Banner & Date / Criteria Controls */}
       <div className="bg-[#064e3b]/60 border border-[#065f46] rounded-[32px] p-6 shadow-xl backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold font-heading text-white flex items-center gap-2">
@@ -625,18 +832,224 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
             <span>تسجيل التسميع وتقييم الطلاب وتحديد مقرر الغد</span>
           </h2>
           <p className="text-xs text-[#86efac]/90 mt-1">
-            تسجيل دقيق للتسميع الفعلي (عبر سورة واحدة أو عدة سور) وتحديد دقيق لورد الحفظ والمراجعة لغد
+            تسجيل التسميع الفعلي والرجوع للأيام السابقة، وضبط مقرر الغد تلقائياً بالذكاء الاصطناعي مع تحديث موضع الحفظ فوراً
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddCriteria}
-          className="px-4 py-2.5 rounded-2xl bg-[#022c22] hover:bg-[#022c22]/80 border border-[#065f46] text-[#fbbf24] text-xs font-bold flex items-center gap-2 self-start md:self-auto cursor-pointer transition-all shadow-md"
-        >
-          <Sliders className="w-4 h-4 text-[#fbbf24]" />
-          <span>تخصيص معايير التقييم والدرجات</span>
-        </button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+            className={`px-3.5 py-2 rounded-2xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              showHistoryDrawer
+                ? 'bg-[#fbbf24] text-[#064e3b] border-[#fbbf24] font-black shadow-md'
+                : 'bg-[#022c22] hover:bg-[#064e3b] text-[#86efac] border-[#065f46]'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>أرشيف الأيام السابقة للطالب ({studentEvaluationsHistory.length})</span>
+          </button>
+
+          <button
+            onClick={handleOpenAddCriteria}
+            className="px-3.5 py-2 rounded-2xl bg-[#022c22] hover:bg-[#022c22]/80 border border-[#065f46] text-[#fbbf24] text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md"
+          >
+            <Sliders className="w-4 h-4 text-[#fbbf24]" />
+            <span>معايير التقييم</span>
+          </button>
+        </div>
       </div>
+
+      {/* 📅 DATE SELECTOR & NAVIGATION BAR */}
+      <div className="bg-[#022c22]/90 border border-[#065f46] rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-[#86efac] flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-[#fbbf24]" />
+            <span>تاريخ التسميع المعروض:</span>
+          </span>
+
+          <div className="flex items-center gap-1.5 bg-[#064e3b]/80 p-1 rounded-xl border border-[#065f46]">
+            <button
+              type="button"
+              onClick={() => setSelectedDate(todayStr)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                selectedDate === todayStr
+                  ? 'bg-[#fbbf24] text-[#064e3b] font-black shadow-sm'
+                  : 'text-[#86efac] hover:text-white'
+              }`}
+            >
+              اليوم ({todayStr})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDate(getYesterdayStr())}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                selectedDate === getYesterdayStr()
+                  ? 'bg-[#fbbf24] text-[#064e3b] font-black shadow-sm'
+                  : 'text-[#86efac] hover:text-white'
+              }`}
+            >
+              الأمس
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDate(getDayBeforeYesterdayStr())}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                selectedDate === getDayBeforeYesterdayStr()
+                  ? 'bg-[#fbbf24] text-[#064e3b] font-black shadow-sm'
+                  : 'text-[#86efac] hover:text-white'
+              }`}
+            >
+              قبل أمس
+            </button>
+          </div>
+
+          {/* Custom Date Input */}
+          <div className="flex items-center gap-1 bg-[#064e3b] px-2.5 py-1 rounded-xl border border-[#065f46]">
+            <span className="text-[11px] text-[#86efac]">تاريخ مخصص:</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="bg-transparent text-xs text-white outline-none font-bold cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {/* Previous / Next Day Steppers */}
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={() => handleDateShift(-1)}
+            className="px-2.5 py-1.5 rounded-xl bg-[#064e3b] hover:bg-[#065f46] text-[#86efac] hover:text-white text-xs font-bold flex items-center gap-1 border border-[#065f46] cursor-pointer transition-colors"
+            title="الانتقال لليوم السابق"
+          >
+            <ChevronRight className="w-4 h-4" />
+            <span>اليوم السابق</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleDateShift(1)}
+            className="px-2.5 py-1.5 rounded-xl bg-[#064e3b] hover:bg-[#065f46] text-[#86efac] hover:text-white text-xs font-bold flex items-center gap-1 border border-[#065f46] cursor-pointer transition-colors"
+            title="الانتقال لليوم التالي"
+          >
+            <span>اليوم التالي</span>
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Past Date Notice Banner */}
+      {selectedDate !== todayStr && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-[#fbbf24] shrink-0" />
+            <span>
+              أنت الآن تستعرض سجل تسميع يوم <span className="text-white underline font-black">{selectedDate}</span> {evaluations.some(e => e.date === selectedDate && e.studentId === activeStudentId) ? '(سجل تم حفظه مسبقاً)' : '(لم يتم رصد تسميع في هذا اليوم بعد)'}.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(todayStr)}
+            className="px-3 py-1 rounded-xl bg-[#fbbf24] text-[#064e3b] font-black text-xs shrink-0 cursor-pointer shadow-sm hover:bg-[#f59e0b]"
+          >
+            العودة لتسميع اليوم
+          </button>
+        </div>
+      )}
+
+      {/* Auto-filled from yesterday notice */}
+      {autoFilledNotice && selectedDate === todayStr && (
+        <div className="p-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center justify-between gap-2 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#fbbf24] shrink-0" />
+            <span>{autoFilledNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAutoFilledNotice('')}
+            className="text-xs text-emerald-300 hover:text-white p-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Expandable History Drawer (Previous Days Archive) */}
+      {showHistoryDrawer && activeStudent && (
+        <div className="bg-[#022c22] border border-[#fbbf24]/30 rounded-3xl p-5 space-y-4 animate-fadeIn shadow-2xl">
+          <div className="flex items-center justify-between pb-3 border-b border-[#065f46]">
+            <div className="flex items-center gap-2">
+              <History className="w-5 h-5 text-[#fbbf24]" />
+              <h3 className="text-sm font-bold text-white font-heading">
+                سجل التسميعات السابقة للطالب: <span className="text-[#fbbf24]">{activeStudent.name}</span> ({studentEvaluationsHistory.length} يوم مسجل)
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowHistoryDrawer(false)}
+              className="p-1 text-[#86efac] hover:text-white rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {studentEvaluationsHistory.length === 0 ? (
+            <div className="p-6 text-center text-xs text-[#86efac]/70">
+              لا توجد سجلات تسميع سابقة مسجلة لهذا الطالب حتى الآن.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[320px] overflow-y-auto pr-1">
+              {studentEvaluationsHistory.map(ev => {
+                const isCurrentView = ev.date === selectedDate;
+                return (
+                  <div
+                    key={ev.id}
+                    className={`p-3.5 rounded-2xl border transition-all space-y-2 text-right ${
+                      isCurrentView
+                        ? 'bg-[#064e3b] border-[#fbbf24] shadow-md ring-1 ring-[#fbbf24]'
+                        : 'bg-[#064e3b]/40 border-[#065f46] hover:bg-[#064e3b]/70'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-[#fbbf24] flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-[#86efac]" />
+                        <span>{ev.date}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDate(ev.date)}
+                        className={`text-[11px] px-2.5 py-0.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                          isCurrentView
+                            ? 'bg-[#fbbf24] text-[#064e3b] font-black'
+                            : 'bg-[#022c22] text-[#86efac] hover:text-white border border-[#065f46]'
+                        }`}
+                      >
+                        {isCurrentView ? 'المعروض حالياً' : 'عرض هذا اليوم'}
+                      </button>
+                    </div>
+
+                    <div className="text-[11px] text-[#f0f9f6] space-y-1">
+                      <div>
+                        <span className="text-[#86efac] font-bold">الجديد: </span>
+                        <span>{ev.recitationDetails?.newMemorizationAchieved || 'لم يحدد'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#86efac] font-bold">المراجعة: </span>
+                        <span className="line-clamp-1">{ev.recitationDetails?.reviewAchieved || 'لم يحدد'}</span>
+                      </div>
+                      {ev.recitationDetails?.teacherNotes && (
+                        <div className="text-[10px] text-amber-200/90 italic line-clamp-1">
+                          "{ev.recitationDetails.teacherNotes}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Students List */}
@@ -646,7 +1059,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
               قائمة طلاب الحلقة ({students.length})
             </h3>
             <span className="text-[11px] text-[#86efac] font-bold">
-              تاريخ: {todayStr}
+              تاريخ: {selectedDate}
             </span>
           </div>
 
@@ -659,12 +1072,12 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
               students.map(student => {
                 const isSelected = student.id === activeStudentId;
                 const studentAtt = attendance.find(
-                  a => a.date === todayStr && a.studentId === student.id
+                  a => a.date === selectedDate && a.studentId === student.id
                 );
                 const isStudentAbsent = studentAtt?.status === 'غائب';
                 const isStudentExcused = studentAtt?.status === 'معتذر';
-                const hasEvaluatedToday = evaluations.some(
-                  e => e.date === todayStr && e.studentId === student.id
+                const hasEvaluatedOnSelectedDate = evaluations.some(
+                  e => e.date === selectedDate && e.studentId === student.id
                 );
 
                 return (
@@ -698,18 +1111,18 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                             isSelected ? 'text-[#064e3b]/80' : 'text-[#86efac]/80'
                           }`}
                         >
-                          سورة {student.currentSurahName} (آية {student.currentAyah})
+                          سورة {student.currentSurahName || getSurahInfo(student.currentSurah || 78).name} (آية {student.currentAyah || 1})
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {hasEvaluatedToday && (
+                      {hasEvaluatedOnSelectedDate && (
                         <span
                           className={`p-1 rounded-lg ${
                             isSelected ? 'bg-[#064e3b]/20 text-[#064e3b]' : 'text-[#fbbf24]'
                           }`}
-                          title="تم تسجيل التسميع اليوم"
+                          title={`تم تسجيل التسميع في ${selectedDate}`}
                         >
                           <CheckCircle2 className="w-4 h-4" />
                         </span>
@@ -756,7 +1169,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                       </span>
                     </div>
                     <p className="text-xs text-[#86efac]/90 mt-0.5">
-                      موضع الحفظ الحالي: سورة {activeStudent.currentSurahName} (الآية {activeStudent.currentAyah})
+                      موضع الحفظ الحالي: سورة {activeStudent.currentSurahName || getSurahInfo(activeStudent.currentSurah || 78).name} (الآية {activeStudent.currentAyah || 1})
                     </p>
                   </div>
                 </div>
@@ -764,36 +1177,36 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                 {isAbsent ? (
                   <div className="px-3.5 py-2 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-1.5">
                     <AlertCircle className="w-4 h-4" />
-                    <span>الطالب مسجل غائب اليوم</span>
+                    <span>الطالب مسجل غائب في {selectedDate}</span>
                   </div>
                 ) : isExcused ? (
                   <div className="px-3.5 py-2 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-[#86efac] text-xs font-bold flex items-center gap-1.5">
                     <Clock className="w-4 h-4" />
-                    <span>الطالب معتذر ({todayAtt?.note || 'عذر مقبول'})</span>
+                    <span>الطالب معتذر ({selectedDateAtt?.note || 'عذر مقبول'})</span>
                   </div>
                 ) : null}
               </div>
 
               {/* ============================================================ */}
-              {/* SECTION 1: TODAY'S RECITATION (ما تم تسميعه اليوم بالتفصيل) */}
+              {/* SECTION 1: TODAY'S RECITATION (ما تم تسميعه بالتفصيل) */}
               {/* ============================================================ */}
               <div className="bg-[#022c22] border border-[#065f46] rounded-3xl p-5 space-y-5">
                 <div className="flex items-center justify-between pb-3 border-b border-[#065f46]">
                   <h4 className="text-sm font-bold text-[#fbbf24] font-heading flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-[#fbbf24]" />
-                    <span>1. ما سمّعه الطالب اليوم في الحلقة (التسميع الفعلي):</span>
+                    <span>1. ما سمّعه الطالب في الحلقة (التسميع الفعلي):</span>
                   </h4>
                   <span className="text-[11px] text-[#86efac] font-bold">
-                    اليوم: {todayStr}
+                    تاريخ التسميع: {selectedDate}
                   </span>
                 </div>
 
-                {/* 1.1 New Memorization Today (Flexible Multi-Surah Range) */}
+                {/* 1.1 New Memorization (Flexible Multi-Surah Range) */}
                 <div className="space-y-3 bg-[#064e3b]/40 p-4 rounded-2xl border border-[#065f46]">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-[#fbbf24]" />
-                      <span>الحفظ الجديد لليوم (بداية ونهاية التسميع):</span>
+                      <span>الحفظ الجديد (بداية ونهاية التسميع):</span>
                     </span>
 
                     <div className="flex items-center gap-1.5">
@@ -827,9 +1240,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#022c22]/70 p-3.5 rounded-2xl border border-[#065f46]">
                     {/* START POINT */}
                     <div className="space-y-2">
-                      <span className="text-[11px] font-bold text-[#fbbf24] flex items-center gap-1">
-                        <span>نقطة البداية (من):</span>
-                      </span>
+                      <span className="text-[11px] font-bold text-[#fbbf24]">نقطة البداية (من):</span>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] text-[#86efac] block mb-1">من سورة:</label>
@@ -871,9 +1282,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 
                     {/* END POINT */}
                     <div className="space-y-2">
-                      <span className="text-[11px] font-bold text-[#86efac] flex items-center gap-1">
-                        <span>نقطة النهاية (إلى):</span>
-                      </span>
+                      <span className="text-[11px] font-bold text-[#86efac]">نقطة النهاية (إلى):</span>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] text-[#86efac] block mb-1">إلى سورة:</label>
@@ -929,12 +1338,12 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                   </div>
                 </div>
 
-                {/* 1.2 Today's Reviews (Multiple Portions & Multi-Surah Spans) */}
+                {/* 1.2 Today's Reviews */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
                       <Layers className="w-4 h-4 text-[#86efac]" />
-                      <span>المراجعة والتثبيت والاختبارات اليوم ({todayReviews.length}):</span>
+                      <span>المراجعة والتثبيت والاختبارات ({todayReviews.length}):</span>
                     </span>
                     <button
                       type="button"
@@ -948,7 +1357,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 
                   {todayReviews.length === 0 ? (
                     <div className="p-4 rounded-2xl bg-[#064e3b]/20 border border-dashed border-[#065f46] text-center text-xs text-[#86efac]/70">
-                      لا توجد مراجعات مسجلة لليوم. اضغط على "إضافة مراجعة" لإضافة موضع مراجعة أو اختبار.
+                      لا توجد مراجعات مسجلة. اضغط على "إضافة مراجعة" لإضافة موضع مراجعة أو اختبار.
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -996,7 +1405,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                               {/* Review Type */}
                               <div className="sm:col-span-1">
                                 <label className="text-[10px] font-semibold text-[#86efac] block mb-1">
-                                  نوع المراجعة / التسميع:
+                                  نوع المراجعة:
                                 </label>
                                 <select
                                   value={rev.type}
@@ -1112,25 +1521,85 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
               </div>
 
               {/* ============================================================ */}
-              {/* SECTION 2: TOMORROW'S ASSIGNMENT (مقرر الغد يحدده المعلم)    */}
+              {/* SECTION 2: TOMORROW'S ASSIGNMENT & AI SMART CALCULATION      */}
               {/* ============================================================ */}
-              <div className="bg-[#022c22] border border-[#fbbf24]/30 rounded-3xl p-5 space-y-5 shadow-lg">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#065f46]">
-                  <h4 className="text-sm font-bold text-[#fbbf24] font-heading flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-[#fbbf24]" />
-                    <span>2. المقرر المطلوب تسميعه غداً (يحدده المعلم للطالب):</span>
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={handleAutoCalcTomorrow}
-                    className="px-3 py-1.5 rounded-xl bg-[#064e3b] hover:bg-[#064e3b]/80 border border-[#fbbf24]/40 text-[#fbbf24] text-xs font-bold flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>حساب المقرر التالي تلقائياً بعد تسميع اليوم</span>
-                  </button>
+              <div className="bg-[#022c22] border border-[#fbbf24]/40 rounded-3xl p-5 space-y-5 shadow-xl relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#065f46]">
+                  <div>
+                    <h4 className="text-sm font-bold text-[#fbbf24] font-heading flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-[#fbbf24]" />
+                      <span>2. المقرر المطلوب تسميعه غداً (حفظ جديد + مراجعة):</span>
+                    </h4>
+                    <p className="text-[11px] text-[#86efac]/80 mt-0.5">
+                      يتم حسابه وضبطه تلقائياً بالذكاء الاصطناعي بدراسة آخر 3 أيام وسجلات الطالب
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* ✨ Smart AI 3-Day Calculation Button */}
+                    <button
+                      type="button"
+                      disabled={isGeneratingSmartPlan}
+                      onClick={handleGenerateSmart3DayPlan}
+                      className="px-4 py-2 rounded-2xl bg-gradient-to-r from-[#fbbf24] to-[#f59e0b] hover:from-[#f59e0b] hover:to-[#d97706] disabled:opacity-50 text-[#064e3b] text-xs font-black flex items-center gap-1.5 shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all cursor-pointer"
+                    >
+                      {isGeneratingSmartPlan ? (
+                        <>
+                          <Clock className="w-4 h-4 animate-spin text-[#064e3b]" />
+                          <span>جاري دراسة أداء 3 أيام وحساب الخطة...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-4 h-4 text-[#064e3b]" />
+                          <Sparkles className="w-3.5 h-3.5 text-[#064e3b]" />
+                          <span>توليد الخطة الذكية للغد (دراسة 3 أيام)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleAutoCalcTomorrow}
+                      className="px-3 py-2 rounded-2xl bg-[#064e3b] hover:bg-[#064e3b]/80 border border-[#065f46] text-[#86efac] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                      title="حساب تتابعي تقليدي"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>تتابع عادي</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* 2.1 Tomorrow's New Memorization (Multi-Surah Range) */}
+                {/* 🌟 3-Day AI Diagnostic Card (if generated) */}
+                {smartAIAnalysis && (
+                  <div className="bg-gradient-to-br from-[#064e3b] to-[#022c22] p-4.5 rounded-2xl border border-[#fbbf24]/50 shadow-lg space-y-3 animate-fadeIn">
+                    <div className="flex items-center justify-between border-b border-[#065f46] pb-2">
+                      <span className="text-xs font-black text-[#fbbf24] flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-[#fbbf24]" />
+                        <span>تحليل الذكاء الاصطناعي لأداء الطالب لآخر 3 أيام:</span>
+                      </span>
+                      <span className="text-[10px] bg-[#fbbf24]/20 text-[#fbbf24] px-2 py-0.5 rounded-md font-bold">
+                        تم الضبط تلقائياً ✨
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-emerald-100 leading-relaxed">
+                      {smartAIAnalysis.threeDayAnalysis}
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                      <div className="p-2.5 rounded-xl bg-[#022c22]/80 border border-[#065f46]">
+                        <span className="font-bold text-[#fbbf24] block mb-0.5">🎯 التبرير التربوي للورد:</span>
+                        <span className="text-[#86efac]">{smartAIAnalysis.pedagogicalReasoning}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#022c22]/80 border border-[#065f46]">
+                        <span className="font-bold text-[#fbbf24] block mb-0.5">💡 تركيز التجويد المقترح:</span>
+                        <span className="text-[#86efac]">{smartAIAnalysis.tajweedFocus}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2.1 Tomorrow's New Memorization */}
                 <div className="space-y-3 bg-[#064e3b]/40 p-4 rounded-2xl border border-[#065f46]">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -1250,7 +1719,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                   </div>
                 </div>
 
-                {/* 2.2 Tomorrow's Review (Multi-Surah Range) */}
+                {/* 2.2 Tomorrow's Review */}
                 <div className="space-y-3 bg-[#064e3b]/40 p-4 rounded-2xl border border-[#065f46]">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -1429,7 +1898,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
               <div className="bg-[#022c22] border border-[#065f46] rounded-3xl p-5 space-y-4">
                 <div className="text-xs font-bold text-[#fbbf24] flex items-center gap-2 pb-2 border-b border-[#065f46]">
                   <Award className="w-4 h-4 text-[#fbbf24]" />
-                  <span>3. تقييم المعايير وملاحظات المعلم اليوم:</span>
+                  <span>3. تقييم المعايير وملاحظات المعلم:</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1546,7 +2015,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                     rows={2}
                     value={teacherNotes}
                     onChange={e => setTeacherNotes(e.target.value)}
-                    placeholder="مثال: أحسنت في إتقان الوقف والابتداء، راعِ تفخيم حروف الاستعلاء في سورة النبأ..."
+                    placeholder="مثال: أحسنت في إتقان الوقف والابتداء، راعِ تفخيم حروف الاستعلاء في سورة النمل..."
                     className="w-full bg-[#064e3b] border border-[#065f46] focus:border-[#fbbf24] rounded-2xl py-2 px-3.5 text-xs text-[#f0f9f6] outline-none resize-none"
                     dir="rtl"
                   />
@@ -1580,7 +2049,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                   className="px-8 py-3.5 rounded-2xl bg-[#fbbf24] hover:bg-[#f59e0b] disabled:opacity-50 text-[#064e3b] text-sm font-black shadow-[0_0_25px_rgba(251,191,36,0.35)] flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   {isSaving ? (
-                    <span>جاري حفظ السجل...</span>
+                    <span>جاري حفظ السجل وتحديث البيانات...</span>
                   ) : (
                     <>
                       <CheckCircle2 className="w-5 h-5 text-[#064e3b]" />
